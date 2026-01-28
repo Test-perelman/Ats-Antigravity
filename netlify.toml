@@ -1,0 +1,16 @@
+[build]
+  command = "cd apps/web && npm install && npm run build"
+  functions = "apps/api/dist"
+  publish = "apps/web/.next"
+
+[build.environment]
+  NODE_ENV = "production"
+  NODE_VERSION = "22"
+
+[[redirects]]
+  from = "/*"
+  to = "/.next/index.html"
+  status = 200
+
+[context.production]
+  command = "cd apps/web && npm install && npm run build"

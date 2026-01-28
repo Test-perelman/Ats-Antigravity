@@ -1,0 +1,44 @@
+redirectsOrigin = "config"
+plugins = []
+functionsDirectory = "D:\\ATS-AntiGravity\\apps\\api\\dist"
+functionsDirectoryOrigin = "config-v1"
+headers = []
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "D:\\ATS-AntiGravity\\apps\\web\\.next"
+publishOrigin = "config"
+commandOrigin = "config"
+command = "cd apps/web && npm install && npm run build"
+functions = "D:\\ATS-AntiGravity\\apps\\api\\dist"
+
+[build.environment]
+NODE_ENV = "production"
+NODE_VERSION = "22"
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[[redirects]]
+from = "/*"
+to = "/.next/index.html"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]

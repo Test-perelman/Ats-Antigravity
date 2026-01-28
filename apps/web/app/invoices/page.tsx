@@ -1,7 +1,23 @@
-// ... imports
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { Calendar, Download, Plus, Search } from 'lucide-react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { useAuth } from '@/lib/firebase/AuthContext';
+import { Button } from '@/components/ui/button';
 import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 
-// ... interface Invoice
+interface Invoice {
+    id: string;
+    invoiceNumber: string;
+    clientName: string;
+    issueDate: string;
+    dueDate: string;
+    amount: number;
+    status: 'draft' | 'sent' | 'paid' | 'overdue';
+}
 
 export default function InvoicesPage() {
     const router = useRouter();

@@ -1,8 +1,22 @@
-// ... imports
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { useAuth } from '@/lib/firebase/AuthContext';
+import { Button } from '@/components/ui/button';
 import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 import DetailModal from '../../components/ui/DetailModal';
 
-// ... interface Job
+interface Job {
+    id: string;
+    title: string;
+    department: string;
+    location: string;
+    status: 'Open' | 'Closed' | 'Draft';
+    createdAt: any;
+}
 
 export default function JobsPage() {
     const router = useRouter();
