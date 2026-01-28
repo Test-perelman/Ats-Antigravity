@@ -6,6 +6,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Building, Plus, Search, MoreHorizontal, MapPin, DollarSign } from 'lucide-react';
 import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 import DetailModal from '../../components/ui/DetailModal';
 
@@ -16,6 +17,9 @@ interface Job {
     location: string;
     status: 'Open' | 'Closed' | 'Draft';
     createdAt: any;
+    clientName?: string;
+    maxRate?: string;
+    description?: string;
 }
 
 export default function JobsPage() {
