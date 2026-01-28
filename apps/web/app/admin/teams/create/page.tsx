@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import api from '../../../lib/api';
-import { Button } from '../../../components/ui/button';
+import api from '../../../../lib/api';
+import { Button } from '../../../../components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
 export default function CreateTeamPage() {

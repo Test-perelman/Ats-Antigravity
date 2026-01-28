@@ -1,22 +1,7 @@
-'use client';
+// ... imports
+import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '../../lib/firebase/AuthContext';
-import { db } from '../../lib/firebase/config';
-import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
-import { Button } from '../../components/ui/button';
-import { LayoutGrid, List, Search, Plus, Filter, FileText, User, Briefcase, Clock, CheckCircle, XCircle } from 'lucide-react';
-
-interface Submission {
-    id: string;
-    candidateId: string;
-    candidateName: string;
-    jobId: string;
-    jobTitle: string;
-    status: string; // 'submitted', 'screening', 'interview', 'offered', 'hired', 'rejected'
-    createdAt: any;
-}
+// ... interface Submission
 
 export default function SubmissionsPage() {
     const router = useRouter();
@@ -66,6 +51,44 @@ export default function SubmissionsPage() {
         { id: 'interviewing', label: 'Interview', color: 'bg-yellow-50 border-yellow-200' },
         { id: 'offered', label: 'Offered', color: 'bg-green-50 border-green-200' },
         { id: 'rejected', label: 'Rejected', color: 'bg-red-50 border-red-200' }
+    ];
+
+    const columns: Column<Submission>[] = [
+        {
+            id: 'candidate',
+            label: 'Candidate',
+            render: (row) => <div className="font-medium text-gray-900">{row.candidateName}</div>
+        },
+        {
+            id: 'job',
+            label: 'Job Requirement',
+            render: (row) => <div className="text-gray-600">{row.jobTitle}</div>
+        },
+        {
+            id: 'status',
+            label: 'Status',
+            render: (row) => (
+                <span className="capitalize bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full text-xs font-semibold">
+                    {row.status}
+                </span>
+            )
+        },
+        {
+            id: 'applied',
+            label: 'Applied Date',
+            render: (row) => (
+                <div className="text-gray-500">
+                    {new Date(row.createdAt?.toDate ? row.createdAt.toDate() : row.createdAt).toLocaleDateString()}
+                </div>
+            )
+        },
+        {
+            id: 'actions',
+            label: 'Actions',
+            render: () => (
+                <Button variant="ghost" size="sm" className="h-8">Details</Button>
+            )
+        }
     ];
 
     return (
@@ -183,45 +206,14 @@ export default function SubmissionsPage() {
                     })}
                 </div>
             ) : (
-                /* Table View */
-                <div className="bg-white border rounded-xl overflow-hidden shadow-sm">
-                    <table className="w-full text-left text-sm">
-                        <thead className="bg-gray-50 border-b">
-                            <tr>
-                                <th className="px-6 py-4 font-semibold text-gray-700">Candidate</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700">Job Requirement</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700">Status</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700">Applied Date</th>
-                                <th className="px-6 py-4 font-semibold text-gray-700 text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredSubmissions.length === 0 ? (
-                                <tr>
-                                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">No submissions found.</td>
-                                </tr>
-                            ) : (
-                                filteredSubmissions.map(item => (
-                                    <tr key={item.id} className="hover:bg-gray-50/50 transition-colors">
-                                        <td className="px-6 py-4 font-medium text-gray-900">{item.candidateName}</td>
-                                        <td className="px-6 py-4 text-gray-600">{item.jobTitle}</td>
-                                        <td className="px-6 py-4">
-                                            <span className="capitalize bg-gray-100 text-gray-700 px-2.5 py-1 rounded-full text-xs font-semibold">
-                                                {item.status}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-gray-500">
-                                            {new Date(item.createdAt?.toDate ? item.createdAt.toDate() : item.createdAt).toLocaleDateString()}
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <Button variant="ghost" size="sm" className="h-8">Details</Button>
-                                        </td>
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
-                </div>
+                /* Table View (Dynamic) */
+                <DynamicTable<Submission>
+                    id="submissions-table"
+                    data={filteredSubmissions}
+                    columns={columns}
+                    isLoading={loading}
+                    emptyMessage="No submissions found."
+                />
             )}
         </div>
     );

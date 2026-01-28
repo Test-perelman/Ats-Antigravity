@@ -6,20 +6,19 @@ import { useAuth } from '../../lib/firebase/AuthContext';
 import { db } from '../../lib/firebase/config';
 import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { Button } from '../../components/ui/button';
-import { Calendar, Clock, Video, Phone, MapPin } from 'lucide-react';
+import { Calendar, Video, Phone, MapPin, Clock } from 'lucide-react';
+import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 
-// Extended interface to match Seed Data + UI requirements
 interface Interview {
     id: string;
-    round?: string;
-    scheduledAt: any; // Allow Timestamp or serialized string
-    mode?: string;
-    interviewType?: string; // Seed data uses this
-    interviewerName?: string;
-    status: string;
+    candidateName?: string;
     submissionId?: string;
-    candidateName?: string; // Seed data uses this
-    jobTitle?: string;      // Seed data uses this
+    jobTitle?: string;
+    scheduledAt: string;
+    mode?: string;
+    interviewType?: string;
+    round?: string;
+    interviewerName?: string;
 }
 
 export default function InterviewsPage() {
@@ -66,6 +65,71 @@ export default function InterviewsPage() {
         }
     };
 
+    const columns: Column<Interview>[] = [
+        {
+            id: 'candidate',
+            label: 'Candidate',
+            render: (row) => (
+                <div>
+                    <div className="font-bold text-lg">
+                        {row.candidateName || `Candidate (ID: ${row.submissionId?.slice(0, 6) || '?'})`}
+                    </div>
+                    {row.jobTitle && (
+                        <div className="text-sm font-normal text-muted-foreground">for {row.jobTitle}</div>
+                    )}
+                </div>
+            )
+        },
+        {
+            id: 'schedule',
+            label: 'Schedule',
+            render: (row) => (
+                <div className="flex items-center gap-1 font-semibold text-foreground">
+                    <Clock size={16} />
+                    {new Date(row.scheduledAt).toLocaleString()}
+                </div>
+            )
+        },
+        {
+            id: 'mode',
+            label: 'Mode',
+            render: (row) => (
+                <div className="flex items-center gap-1 capitalize">
+                    {getModeIcon(row.mode || row.interviewType)}
+                    {row.mode || row.interviewType || 'Onsite'}
+                </div>
+            )
+        },
+        {
+            id: 'round',
+            label: 'Round',
+            render: (row) => row.round ? (
+                <span className="bg-secondary px-2 py-0.5 rounded text-xs uppercase tracking-wide font-bold">
+                    {row.round}
+                </span>
+            ) : null
+        },
+        {
+            id: 'interviewer',
+            label: 'Interviewer',
+            render: (row) => row.interviewerName ? (
+                <div className="text-xs text-muted-foreground">
+                    {row.interviewerName}
+                </div>
+            ) : <span className="text-xs text-gray-400">-</span>
+        },
+        {
+            id: 'actions',
+            label: 'Actions',
+            render: () => (
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm">Reschedule</Button>
+                    <Button size="sm">Join Call</Button>
+                </div>
+            )
+        }
+    ];
+
     return (
         <div className="container p-6">
             <div className="flex justify-between items-center mb-8">
@@ -87,61 +151,14 @@ export default function InterviewsPage() {
                 </div>
             </div>
 
-            <div className="space-y-4">
-                {loading ? (
-                    <div className="p-8 text-center text-muted-foreground">Loading schedule...</div>
-                ) : interviews.length === 0 ? (
-                    <div className="p-12 text-center border rounded dashed bg-secondary/30">
-                        <Calendar className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                        <h3 className="text-lg font-medium">No interviews scheduled</h3>
-                        <p className="text-muted-foreground">Schedule an interview to see it here.</p>
-                        <Button onClick={() => router.push('/interviews/schedule')} variant="outline" className="mt-4">
-                            Schedule Now
-                        </Button>
-                    </div>
-                ) : (
-                    interviews.map((interview) => (
-                        <div key={interview.id} className="bg-card border rounded p-6 shadow hover:shadow-md transition-shadow flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div className="flex-grow">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-bold text-lg">
-                                        {interview.candidateName || `Candidate (ID: ${interview.submissionId?.slice(0, 6) || '?'})`}
-                                    </span>
-                                    {interview.jobTitle && (
-                                        <span className="text-sm font-normal text-muted-foreground">for {interview.jobTitle}</span>
-                                    )}
-                                </div>
-                                <div className="flex items-center gap-6 text-sm text-muted-foreground">
-                                    <span className="flex items-center gap-1 font-semibold text-foreground">
-                                        <Clock size={16} />
-                                        {new Date(interview.scheduledAt).toLocaleString()}
-                                    </span>
-                                    <span className="flex items-center gap-1 capitalize">
-                                        {getModeIcon(interview.mode || interview.interviewType)}
-                                        {interview.mode || interview.interviewType || 'Onsite'}
-                                    </span>
-                                    {interview.round && (
-                                        <span className="bg-secondary px-2 py-0.5 rounded text-xs uppercase tracking-wide font-bold">
-                                            {interview.round}
-                                        </span>
-                                    )}
-                                </div>
-
-                                {interview.interviewerName && (
-                                    <div className="text-xs text-muted-foreground mt-2">
-                                        Interviewer: {interview.interviewerName}
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="flex gap-2">
-                                <Button variant="outline" size="sm">Reschedule</Button>
-                                <Button size="sm">Join Call</Button>
-                            </div>
-                        </div>
-                    ))
-                )}
-            </div>
-        </div >
+            <DynamicTable<Interview>
+                id="interviews-table"
+                data={interviews}
+                columns={columns}
+                // onRowClick={(row) => router.push(`/interviews/${row.id}`)}
+                isLoading={loading}
+                emptyMessage="No interviews scheduled."
+            />
+        </div>
     );
 }

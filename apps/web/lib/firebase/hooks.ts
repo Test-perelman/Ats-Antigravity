@@ -12,6 +12,17 @@ export interface Candidate {
     skills: string[];
     status: string;
     createdAt: any;
+
+    // Talent Bench Specific
+    benchReady?: boolean;
+    highPriority?: boolean;
+    visaStatus?: string;
+    visaExpiry?: any;
+    availabilityDate?: any;
+    availabilityStatus?: 'Immediate' | 'In 2 weeks' | 'In 30 days' | 'On Project';
+    currentProjectEndDate?: any;
+    expectedRate?: string;
+    assignedRecruiter?: string;
 }
 
 export interface Job {

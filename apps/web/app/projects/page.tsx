@@ -1,22 +1,8 @@
-'use client';
+// ... imports
+import DynamicTable, { Column } from '../../components/ui/DynamicTable';
+import DetailModal from '../../components/ui/DetailModal';
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '../../lib/firebase/AuthContext';
-import { db } from '../../lib/firebase/config';
-import { collection, query, orderBy, onSnapshot, getDoc, doc } from 'firebase/firestore';
-import { Button } from '../../components/ui/button';
-import { Briefcase, Plus, Calendar, Building, Loader2 } from 'lucide-react';
-
-interface Project {
-    id: string;
-    name: string;
-    status: string;
-    startDate: any; // Timestamp
-    endDate?: any; // Timestamp
-    clientId: string;
-    clientName?: string; // Resolved from clientId
-}
+// ... interface Project
 
 export default function ProjectsPage() {
     const router = useRouter();
@@ -25,11 +11,12 @@ export default function ProjectsPage() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
 
     useEffect(() => {
         if (!userData?.teamId) return;
-
-        // Reference to the team's projects collection
+        // ... (existing query logic)
         const q = query(
             collection(db, 'teams', userData.teamId, 'projects'),
             orderBy('startDate', 'desc')
@@ -64,11 +51,59 @@ export default function ProjectsPage() {
         return matchesSearch && matchesStatus;
     });
 
+    const columns: Column<Project>[] = [
+        {
+            id: 'name',
+            label: 'Project Name',
+            render: (row) => <div className="font-bold text-gray-900">{row.name}</div>
+        },
+        {
+            id: 'client',
+            label: 'Client',
+            render: (row) => (
+                <div className="flex items-center gap-1 font-medium text-gray-700">
+                    <Building size={14} /> {row.clientName || 'Unknown'}
+                </div>
+            )
+        },
+        {
+            id: 'timeline',
+            label: 'Timeline',
+            render: (row) => (
+                <div className="flex items-center gap-1 text-sm text-gray-600">
+                    <Calendar size={14} />
+                    {formatDate(row.startDate)}
+                    {row.endDate ? ` - ${formatDate(row.endDate)}` : ' - Ongoing'}
+                </div>
+            )
+        },
+        {
+            id: 'status',
+            label: 'Status',
+            render: (row) => (
+                <span className={`px-2 py-0.5 rounded text-xs uppercase font-bold tracking-wide ${(row.status || 'active') === 'active' ? 'bg-green-100 text-green-800' :
+                    (row.status === 'completed' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800')
+                    }`}>
+                    {row.status || 'Active'}
+                </span>
+            )
+        },
+        {
+            id: 'actions',
+            label: 'Actions',
+            render: () => (
+                <div className="flex gap-2">
+                    <Button variant="ghost" size="sm">Edit</Button>
+                </div>
+            )
+        }
+    ];
+
     return (
         <div className="container p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
                 <div>
-                    <h1 className="title">Projects</h1>
+                    <h1 className="title">Placements</h1>
                     <p className="subtitle">Manage active placements</p>
                 </div>
                 <Button onClick={() => router.push('/projects/new')} className="bg-amber-500 hover:bg-amber-600 text-white">
@@ -98,61 +133,30 @@ export default function ProjectsPage() {
                     <option value="completed">Completed</option>
                     <option value="on-hold">On Hold</option>
                 </select>
-                <Button variant="outline" className="px-6">
-                    Search
-                </Button>
             </div>
 
-            <div className="space-y-4">
-                {loading ? (
-                    <div className="flex justify-center p-8">
-                        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                    </div>
-                ) : filteredProjects.length === 0 ? (
-                    <div className="p-12 text-center border rounded dashed bg-secondary/30">
-                        {searchTerm ? (
-                            <>
-                                <h3 className="text-lg font-medium">No projects found matching your search</h3>
-                                <p className="text-muted-foreground mb-4">Try adjusting your filters.</p>
-                            </>
-                        ) : (
-                            <>
-                                <h3 className="text-lg font-medium">No projects found. Create your first project!</h3>
-                                <p className="text-muted-foreground mb-4">Projects track billable work for clients.</p>
-                            </>
-                        )}
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 gap-4">
-                        {filteredProjects.map(proj => (
-                            <div key={proj.id} onClick={() => router.push(`/projects/${proj.id}`)} className="bg-card border rounded p-6 shadow-sm flex flex-col md:flex-row justify-between items-center hover:shadow-md transition-shadow cursor-pointer bg-white">
-                                <div>
-                                    <h3 className="text-lg font-bold text-gray-900 mb-1">{proj.name}</h3>
-                                    <div className="flex items-center gap-6 text-sm text-gray-500">
-                                        <span className="flex items-center gap-1 font-medium text-gray-700">
-                                            <Building size={14} /> {proj.clientName || 'Unknown Client'}
-                                        </span>
-                                        <span className="flex items-center gap-1">
-                                            <Calendar size={14} />
-                                            {formatDate(proj.startDate)}
-                                            {proj.endDate ? ` - ${formatDate(proj.endDate)}` : ' - Ongoing'}
-                                        </span>
-                                        <span className={`px-2 py-0.5 rounded text-xs uppercase font-bold tracking-wide ${(proj.status || 'active') === 'active' ? 'bg-green-100 text-green-800' :
-                                                (proj.status === 'completed' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800')
-                                            }`}>
-                                            {proj.status || 'Active'}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div className="mt-4 md:mt-0 flex gap-2">
-                                    <Button variant="ghost" size="sm">Edit</Button>
-                                    <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); router.push('/timesheets'); }}>View Timesheets</Button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+            <DynamicTable<Project>
+                id="projects-table"
+                data={filteredProjects}
+                columns={columns}
+                onRowClick={(row) => {
+                    setSelectedProject(row);
+                    setIsDetailOpen(true);
+                }}
+                isLoading={loading}
+                emptyMessage="No placements found."
+            />
+
+            <DetailModal
+                isOpen={isDetailOpen}
+                onClose={() => {
+                    setIsDetailOpen(false);
+                    setSelectedProject(null);
+                }}
+                type="placement"
+                id={selectedProject?.id || ''}
+                title={`Placement: ${selectedProject?.name}`}
+            />
         </div>
     );
 }

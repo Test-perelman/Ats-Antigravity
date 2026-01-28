@@ -16,7 +16,9 @@ import {
     Settings,
     LogOut,
     Menu,
-    Bell
+    Bell,
+    Armchair,
+    ClipboardCheck
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
@@ -41,14 +43,16 @@ export function SiteHeader() {
 
     const navigation = [
         { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-        { name: 'Candidates', href: '/candidates', icon: Users },
         { name: 'Jobs', href: '/jobs', icon: Briefcase },
-        { name: 'Projects', href: '/projects', icon: FolderKanban },
+        { name: 'Candidates', href: '/candidates', icon: Users },
         { name: 'Clients', href: '/clients', icon: Building2 },
+        { name: 'Talent Bench', href: '/talent-bench', icon: Armchair },
+        { name: 'Vendors', href: '/vendors', icon: Truck },
+        { name: 'Placements', href: '/projects', icon: FolderKanban }, // Keeping /projects route for now
+        { name: 'Onboarding', href: '/onboarding', icon: ClipboardCheck },
+        { name: 'Immigration', href: '/immigration', icon: Globe },
         { name: 'Timesheets', href: '/timesheets', icon: Clock },
         { name: 'Invoices', href: '/invoices', icon: FileText },
-        { name: 'Vendors', href: '/vendors', icon: Truck },
-        { name: 'Immigration', href: '/immigration', icon: Globe },
     ];
 
     const handleSignOut = async () => {

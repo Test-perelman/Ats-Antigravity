@@ -1,22 +1,7 @@
-'use client';
+// ... imports
+import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '../../lib/firebase/AuthContext';
-import { db } from '../../lib/firebase/config';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
-import { Button } from '../../components/ui/button';
-import { Plus, Search, FileText, Download, DollarSign, Calendar } from 'lucide-react';
-
-interface Invoice {
-    id: string;
-    invoiceNumber: string;
-    clientName: string;
-    amount: number;
-    issueDate: string;
-    dueDate: string;
-    status: 'draft' | 'sent' | 'paid' | 'overdue';
-}
+// ... interface Invoice
 
 export default function InvoicesPage() {
     const router = useRouter();
@@ -56,6 +41,54 @@ export default function InvoicesPage() {
         }
     };
 
+    const columns: Column<Invoice>[] = [
+        {
+            id: 'invoiceNumber',
+            label: 'Invoice #',
+            render: (row) => <div className="font-medium text-primary">{row.invoiceNumber}</div>
+        },
+        {
+            id: 'client',
+            label: 'Client',
+            render: (row) => row.clientName
+        },
+        {
+            id: 'dates',
+            label: 'Dates',
+            render: (row) => (
+                <div className="text-sm text-gray-600">
+                    <div className="flex items-center gap-1"><Calendar size={12} /> Issued: {row.issueDate}</div>
+                    <div className="flex items-center gap-1 text-xs text-gray-400">Due: {row.dueDate}</div>
+                </div>
+            )
+        },
+        {
+            id: 'amount',
+            label: 'Amount',
+            render: (row) => <div className="font-medium">${Number(row.amount).toLocaleString()}</div>
+        },
+        {
+            id: 'status',
+            label: 'Status',
+            render: (row) => (
+                <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${getStatusColor(row.status)}`}>
+                    {row.status}
+                </span>
+            )
+        },
+        {
+            id: 'actions',
+            label: 'Actions',
+            render: () => (
+                <div className="text-right">
+                    <Button variant="ghost" size="sm">
+                        <Download size={16} />
+                    </Button>
+                </div>
+            )
+        }
+    ];
+
     return (
         <div className="container p-6">
             <div className="flex justify-between items-center mb-8">
@@ -81,58 +114,14 @@ export default function InvoicesPage() {
                 </div>
             </div>
 
-            <div className="border rounded-lg shadow-sm bg-white overflow-hidden">
-                <table className="w-full text-left">
-                    <thead className="bg-gray-50 border-b">
-                        <tr>
-                            <th className="p-4 font-medium text-gray-500">Invoice #</th>
-                            <th className="p-4 font-medium text-gray-500">Client</th>
-                            <th className="p-4 font-medium text-gray-500">Dates</th>
-                            <th className="p-4 font-medium text-gray-500">Amount</th>
-                            <th className="p-4 font-medium text-gray-500">Status</th>
-                            <th className="p-4 font-medium text-gray-500 text-right">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                        {loading ? (
-                            <tr><td colSpan={6} className="p-8 text-center text-muted-foreground">Loading invoices...</td></tr>
-                        ) : invoices.length === 0 ? (
-                            <tr>
-                                <td colSpan={6} className="p-12 text-center">
-                                    <FileText className="mx-auto h-12 w-12 text-gray-300 mb-3" />
-                                    <h3 className="text-lg font-medium text-gray-900">No invoices yet</h3>
-                                    <p className="text-muted-foreground mb-4">Create your first invoice to get started.</p>
-                                    <Button variant="outline" onClick={() => router.push('/invoices/new')}>Create Invoice</Button>
-                                </td>
-                            </tr>
-                        ) : (
-                            invoices.map((inv) => (
-                                <tr key={inv.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => console.log('View invoice', inv.id)}>
-                                    <td className="p-4 font-medium text-primary">{inv.invoiceNumber}</td>
-                                    <td className="p-4">{inv.clientName}</td>
-                                    <td className="p-4 text-sm text-gray-600">
-                                        <div className="flex items-center gap-1"><Calendar size={12} /> Issued: {inv.issueDate}</div>
-                                        <div className="flex items-center gap-1 text-xs text-gray-400">Due: {inv.dueDate}</div>
-                                    </td>
-                                    <td className="p-4 font-medium">
-                                        ${Number(inv.amount).toLocaleString()}
-                                    </td>
-                                    <td className="p-4">
-                                        <span className={`px-2 py-1 rounded text-xs font-semibold uppercase ${getStatusColor(inv.status)}`}>
-                                            {inv.status}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-right">
-                                        <Button variant="ghost" size="sm">
-                                            <Download size={16} />
-                                        </Button>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            <DynamicTable<Invoice>
+                id="invoices-table"
+                data={invoices}
+                columns={columns}
+                // onRowClick={(row) => console.log('View invoice', row.id)}
+                isLoading={loading}
+                emptyMessage="No invoices yet."
+            />
         </div>
     );
 }

@@ -4,22 +4,23 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/firebase/AuthContext';
 import { db } from '../../lib/firebase/config';
-import { collection, query, orderBy, onSnapshot, DocumentData } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { Button } from '../../components/ui/button';
-import { Plus, Search, MoreHorizontal, Briefcase, Globe } from 'lucide-react';
-import SkeletonLoader from '../../components/dashboard/SkeletonLoader';
+import { Plus, Search, MoreHorizontal, Globe, Briefcase } from 'lucide-react';
+import DynamicTable, { Column } from '../../components/ui/DynamicTable';
+import DetailModal from '../../components/ui/DetailModal';
 
 interface Candidate {
     id: string;
     firstName: string;
     lastName: string;
     email: string;
-    title: string;
-    status: string;
+    title?: string;
     skills?: string[];
-    experience?: number;
     visaStatus?: string;
-    createdAt: any; // Firestore Timestamp
+    experience?: number;
+    status: string;
+    createdAt: any;
 }
 
 export default function CandidatesPage() {
@@ -27,6 +28,8 @@ export default function CandidatesPage() {
     const { userData } = useAuth();
     const [candidates, setCandidates] = useState<Candidate[]>([]);
     const [loading, setLoading] = useState(true);
+    const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+    const [isDetailOpen, setIsDetailOpen] = useState(false);
 
     useEffect(() => {
         if (!userData?.teamId) return;
@@ -60,6 +63,77 @@ export default function CandidatesPage() {
         return new Date(timestamp).toLocaleDateString(); // Fallback
     };
 
+    // Columns Definition
+    const columns: Column<Candidate>[] = [
+        {
+            id: 'name',
+            label: 'Name',
+            render: (row) => (
+                <div>
+                    <div className="font-bold">{row.firstName} {row.lastName}</div>
+                    <div className="text-sm text-muted-foreground">{row.email}</div>
+                </div>
+            )
+        },
+        {
+            id: 'title',
+            label: 'Title / Skills',
+            render: (row) => (
+                <div>
+                    <div className="font-medium text-sm">{row.title || '-'}</div>
+                    {row.skills && row.skills.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                            {row.skills.slice(0, 3).map((skill, i) => (
+                                <span key={i} className="px-1.5 py-0.5 bg-secondary text-secondary-foreground text-[10px] rounded border">
+                                    {skill}
+                                </span>
+                            ))}
+                            {row.skills.length > 3 && <span className="text-[10px] text-muted-foreground">+{row.skills.length - 3}</span>}
+                        </div>
+                    )}
+                </div>
+            )
+        },
+        {
+            id: 'visa_exp',
+            label: 'Visa & Experience',
+            render: (row) => (
+                <div className="text-sm">
+                    <div className="flex items-center gap-1 mb-1" title="Visa Status">
+                        <Globe size={12} className="text-muted-foreground" />
+                        <span>{row.visaStatus || 'N/A'}</span>
+                    </div>
+                    <div className="flex items-center gap-1" title="Experience">
+                        <Briefcase size={12} className="text-muted-foreground" />
+                        <span>{row.experience || 0} Yrs</span>
+                    </div>
+                </div>
+            )
+        },
+        {
+            id: 'status',
+            label: 'Status',
+            render: (row) => (
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
+                    ${row.status === 'new' ? 'bg-blue-100 text-blue-800' :
+                        row.status === 'interviewing' ? 'bg-purple-100 text-purple-800' :
+                            row.status === 'hired' ? 'bg-green-100 text-green-800' :
+                                'bg-gray-100 text-gray-800'}`}>
+                    {row.status}
+                </span>
+            )
+        },
+        {
+            id: 'actions',
+            label: 'Actions',
+            render: () => (
+                <Button variant="ghost" size="sm">
+                    <MoreHorizontal size={16} />
+                </Button>
+            )
+        }
+    ];
+
     return (
         <div className="container p-6">
             {/* Header */}
@@ -88,79 +162,29 @@ export default function CandidatesPage() {
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="bg-card rounded shadow border overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="border-b bg-secondary/50 text-sm text-muted-foreground">
-                            <th className="p-4 font-medium">Name</th>
-                            <th className="p-4 font-medium">Title/Skills</th>
-                            <th className="p-4 font-medium">Visa & Exp</th>
-                            <th className="p-4 font-medium">Status</th>
-                            <th className="p-4 font-medium">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading ? (
-                            <tr>
-                                <td colSpan={5} className="p-4">
-                                    <SkeletonLoader type="table" count={1} />
-                                </td>
-                            </tr>
-                        ) : candidates.length === 0 ? (
-                            <tr>
-                                <td colSpan={5} className="p-8 text-center text-muted-foreground">No candidates found.</td>
-                            </tr>
-                        ) : (
-                            candidates.map((candidate) => (
-                                <tr key={candidate.id} className="border-b last:border-0 hover:bg-secondary/10 transition-colors cursor-pointer" onClick={() => router.push(`/candidates/${candidate.id}`)}>
-                                    <td className="p-4">
-                                        <div className="font-bold">{candidate.firstName} {candidate.lastName}</div>
-                                        <div className="text-sm text-muted-foreground">{candidate.email}</div>
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="font-medium text-sm">{candidate.title || '-'}</div>
-                                        {candidate.skills && candidate.skills.length > 0 && (
-                                            <div className="flex flex-wrap gap-1 mt-1">
-                                                {candidate.skills.slice(0, 3).map((skill, i) => (
-                                                    <span key={i} className="px-1.5 py-0.5 bg-secondary text-secondary-foreground text-[10px] rounded border">
-                                                        {skill}
-                                                    </span>
-                                                ))}
-                                                {candidate.skills.length > 3 && <span className="text-[10px] text-muted-foreground">+{candidate.skills.length - 3}</span>}
-                                            </div>
-                                        )}
-                                    </td>
-                                    <td className="p-4 text-sm">
-                                        <div className="flex items-center gap-1 mb-1" title="Visa Status">
-                                            <Globe size={12} className="text-muted-foreground" />
-                                            <span>{candidate.visaStatus || 'N/A'}</span>
-                                        </div>
-                                        <div className="flex items-center gap-1" title="Experience">
-                                            <Briefcase size={12} className="text-muted-foreground" />
-                                            <span>{candidate.experience || 0} Yrs</span>
-                                        </div>
-                                    </td>
-                                    <td className="p-4">
-                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium 
-                                            ${candidate.status === 'new' ? 'bg-blue-100 text-blue-800' :
-                                                candidate.status === 'interviewing' ? 'bg-purple-100 text-purple-800' :
-                                                    candidate.status === 'hired' ? 'bg-green-100 text-green-800' :
-                                                        'bg-gray-100 text-gray-800'}`}>
-                                            {candidate.status}
-                                        </span>
-                                    </td>
-                                    <td className="p-4">
-                                        <Button variant="ghost" size="sm">
-                                            <MoreHorizontal size={16} />
-                                        </Button>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-            </div>
+            {/* Dynamic Table */}
+            <DynamicTable<Candidate>
+                id="candidates-table"
+                data={candidates}
+                columns={columns}
+                onRowClick={(row) => {
+                    setSelectedCandidate(row);
+                    setIsDetailOpen(true);
+                }}
+                isLoading={loading}
+                emptyMessage="No candidates found."
+            />
+
+            <DetailModal
+                isOpen={isDetailOpen}
+                onClose={() => {
+                    setIsDetailOpen(false);
+                    setSelectedCandidate(null);
+                }}
+                type="candidate"
+                id={selectedCandidate?.id || ''}
+                title={`Candidate: ${selectedCandidate?.firstName} ${selectedCandidate?.lastName}`}
+            />
         </div>
     );
 }
