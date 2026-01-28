@@ -1,7 +1,22 @@
-// ... imports
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { useAuth } from '@/lib/firebase/AuthContext';
+import { Button } from '@/components/ui/button';
 import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 
-// ... interface Timesheet
+interface Timesheet {
+    id: string;
+    candidateName?: string;
+    projectName?: string;
+    weekEnding?: string;
+    hoursLogged?: number;
+    status?: string;
+    createdAt?: any;
+}
 
 export default function TimesheetsPage() {
     const router = useRouter();

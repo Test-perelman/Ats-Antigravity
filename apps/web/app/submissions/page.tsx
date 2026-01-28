@@ -1,7 +1,23 @@
-// ... imports
+'use client';
+
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { useAuth } from '@/lib/firebase/AuthContext';
+import { Button } from '@/components/ui/button';
 import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 
-// ... interface Submission
+interface Submission {
+    id: string;
+    candidateId: string;
+    jobId: string;
+    candidateName: string;
+    jobTitle: string;
+    status: 'pending' | 'approved' | 'rejected' | 'interviewing';
+    submittedBy?: string;
+    submittedAt?: any;
+}
 
 export default function SubmissionsPage() {
     const router = useRouter();

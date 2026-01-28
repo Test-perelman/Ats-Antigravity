@@ -20,6 +20,9 @@ interface Job {
     clientName?: string;
     maxRate?: string;
     description?: string;
+    _count?: {
+        submissions?: number;
+    };
 }
 
 export default function JobsPage() {
@@ -100,7 +103,7 @@ export default function JobsPage() {
             id: 'status',
             label: 'Status',
             render: (row) => (
-                <span className={`capitalize px-2 py-0.5 rounded text-xs font-semibold ${row.status === 'open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                <span className={`capitalize px-2 py-0.5 rounded text-xs font-semibold ${row.status === 'Open' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
                     {row.status}
                 </span>
             )
