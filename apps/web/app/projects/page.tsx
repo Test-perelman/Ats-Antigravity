@@ -6,6 +6,7 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Building, Calendar, Users, Plus, Search, MoreHorizontal } from 'lucide-react';
 import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 import DetailModal from '../../components/ui/DetailModal';
 
@@ -18,6 +19,7 @@ interface Project {
     teamMembers?: number;
     progress?: number;
     createdAt?: any;
+    clientName?: string;
 }
 
 export default function ProjectsPage() {
