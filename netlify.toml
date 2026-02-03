@@ -1,16 +1,10 @@
 [build]
-  command = "cd apps/web && npm install && npm run build"
-  functions = "apps/api/dist"
-  publish = "apps/web/.next"
+  base = "apps/web"
+  command = "npm ci && npx next build"
+  publish = ".next"
 
 [build.environment]
-  NODE_ENV = "production"
   NODE_VERSION = "22"
 
-[[redirects]]
-  from = "/*"
-  to = "/.next/index.html"
-  status = 200
-
-[context.production]
-  command = "cd apps/web && npm install && npm run build"
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
