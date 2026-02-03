@@ -1,10 +1,7 @@
 [build]
   base = "apps/web"
-  command = "npm ci && npx next build"
+  command = "npm ci && npm run build"
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "22"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+  NODE_VERSION = "20"
