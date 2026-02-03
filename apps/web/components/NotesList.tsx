@@ -16,7 +16,7 @@ interface Note {
 
 interface NotesListProps {
     parentId: string;
-    parentType: 'candidates' | 'projects' | 'clients' | 'invoices' | 'jobs';
+    parentType: 'candidates' | 'projects' | 'clients' | 'invoices' | 'jobs' | 'immigration' | 'onboarding' | 'talent_bench' | 'vendors';
 }
 
 export default function NotesList({ parentId, parentType }: NotesListProps) {

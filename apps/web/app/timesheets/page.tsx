@@ -6,14 +6,16 @@ import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 
 interface Timesheet {
     id: string;
     candidateName?: string;
     projectName?: string;
-    weekEnding?: string;
+    weekEnding?: any;
     hoursLogged?: number;
+    totalHours?: number;
     status?: string;
     createdAt?: any;
 }
@@ -48,7 +50,7 @@ export default function TimesheetsPage() {
         return () => unsubscribe();
     }, [userData?.teamId]);
 
-    const statusColor = (status: string) => {
+    const statusColor = (status?: string) => {
         switch (status?.toLowerCase()) {
             case 'approved': return 'bg-green-100 text-green-800';
             case 'rejected': return 'bg-red-100 text-red-800';

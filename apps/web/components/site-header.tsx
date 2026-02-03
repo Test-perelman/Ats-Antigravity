@@ -18,13 +18,14 @@ import {
     Menu,
     Bell,
     Armchair,
-    ClipboardCheck
+    ClipboardCheck,
+    X
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 
 export function SiteHeader() {
     const pathname = usePathname();
-    const { user, signOut } = useAuth();
+    const { user, userData, signOut } = useAuth();
     const router = useRouter();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -129,11 +130,11 @@ export function SiteHeader() {
                                 {user.photoURL ? (
                                     <img src={user.photoURL} alt="Profile" className="h-8 w-8 rounded-full" />
                                 ) : (
-                                    user.firstName?.[0] || 'U'
+                                    userData?.firstName?.[0] || 'U'
                                 )}
                             </div>
                             <span className="text-sm font-medium text-gray-700 hidden md:block">
-                                {user.firstName || 'User'}
+                                {userData?.firstName || 'User'}
                             </span>
                         </button>
 
@@ -141,7 +142,7 @@ export function SiteHeader() {
                         {userMenuOpen && (
                             <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-100 py-2 animate-fade-in z-50">
                                 <div className="px-4 py-2 border-b border-gray-100 mb-1">
-                                    <p className="text-sm font-bold text-gray-900">{user.firstName} {user.lastName}</p>
+                                    <p className="text-sm font-bold text-gray-900">{userData?.firstName} {userData?.lastName}</p>
                                     <p className="text-xs text-gray-500 truncate">{user.email}</p>
                                 </div>
                                 <Link href="/settings" className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 hover:text-primary">

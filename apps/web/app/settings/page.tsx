@@ -23,6 +23,7 @@ import {
 import DynamicTable, { Column } from '@/components/ui/DynamicTable';
 
 interface UserProfile {
+    id: string;
     uid: string;
     email: string;
     firstName: string;
@@ -58,6 +59,7 @@ export default function SettingsPage() {
         );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const users = snapshot.docs.map(doc => ({
+                id: doc.id,
                 uid: doc.id,
                 ...doc.data()
             })) as UserProfile[];

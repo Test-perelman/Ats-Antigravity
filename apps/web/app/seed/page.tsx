@@ -17,7 +17,7 @@ export default function SeedPage() {
 
     const generateRandomId = () => Math.random().toString(36).substr(2, 9);
 
-    const randomItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+    const randomItem = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
         // Data Generators
         const firstNames = ['James', 'Mary', 'John', 'Patricia', 'Robert', 'Jennifer', 'Michael', 'Linda', 'William', 'Elizabeth'];

@@ -6,6 +6,7 @@ import { collection, query, orderBy, onSnapshot, where } from 'firebase/firestor
 import { db } from '@/lib/firebase/config';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { Button } from '@/components/ui/button';
+import { LayoutGrid, List, Plus, Search, Briefcase, Clock } from 'lucide-react';
 import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 
 interface Submission {
@@ -14,9 +15,10 @@ interface Submission {
     jobId: string;
     candidateName: string;
     jobTitle: string;
-    status: 'pending' | 'approved' | 'rejected' | 'interviewing';
+    status: 'pending' | 'approved' | 'rejected' | 'interviewing' | 'submitted' | 'screening' | 'interview' | 'offered';
     submittedBy?: string;
     submittedAt?: any;
+    createdAt?: any;
 }
 
 export default function SubmissionsPage() {
