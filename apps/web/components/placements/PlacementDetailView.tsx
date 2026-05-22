@@ -11,9 +11,29 @@ interface PlacementDetailViewProps {
     placementId: string;
 }
 
+interface TimestampLike {
+    toDate: () => Date;
+}
+
+interface PlacementRecord {
+    id: string;
+    name?: string;
+    clientName?: string;
+    status?: string;
+    startDate?: unknown;
+    endDate?: unknown;
+    budget?: string | number;
+    value?: string | number;
+    description?: string;
+}
+
+function isTimestampLike(value: unknown): value is TimestampLike {
+    return typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function';
+}
+
 export default function PlacementDetailView({ placementId }: PlacementDetailViewProps) {
     const { userData } = useAuth();
-    const [project, setProject] = useState<any>(null);
+    const [project, setProject] = useState<PlacementRecord | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -25,7 +45,7 @@ export default function PlacementDetailView({ placementId }: PlacementDetailView
                 const docRef = doc(db, 'teams', userData.teamId, 'projects', placementId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
-                    setProject({ id: docSnap.id, ...docSnap.data() });
+                    setProject({ id: docSnap.id, ...docSnap.data() } as PlacementRecord);
                 }
             } catch (err) {
                 console.error("Error fetching placement:", err);
@@ -37,14 +57,15 @@ export default function PlacementDetailView({ placementId }: PlacementDetailView
         fetchProject();
     }, [userData?.teamId, placementId]);
 
-    const formatDate = (date: any) => {
+    const formatDate = (date: unknown) => {
         if (!date) return 'N/A';
-        if (date.toDate) return date.toDate().toLocaleDateString();
-        return new Date(date).toLocaleDateString();
+        if (isTimestampLike(date)) return date.toDate().toLocaleDateString();
+        return new Date(String(date)).toLocaleDateString();
     };
 
     if (loading) return <div className="p-8 text-center">Loading placement details...</div>;
     if (!project) return <div className="p-8 text-center">Placement not found.</div>;
+    const value = Number(project.value ?? project.budget ?? 0);
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -74,7 +95,7 @@ export default function PlacementDetailView({ placementId }: PlacementDetailView
                         </div>
                         <div className="flex items-center gap-2">
                             <DollarSign size={16} />
-                            Value: ${project.value?.toLocaleString() || '0'}
+                            Value: ${value.toLocaleString()}
                         </div>
                     </div>
 

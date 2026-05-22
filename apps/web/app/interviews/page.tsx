@@ -26,6 +26,7 @@ export default function InterviewsPage() {
     const { userData } = useAuth();
     const [interviews, setInterviews] = useState<Interview[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (!userData?.teamId) return;
@@ -64,6 +65,20 @@ export default function InterviewsPage() {
             default: return <MapPin size={16} />;
         }
     };
+
+    const filteredInterviews = interviews.filter((interview) => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+        return [
+            interview.candidateName,
+            interview.jobTitle,
+            interview.round,
+            interview.interviewerName,
+            interview.mode,
+            interview.interviewType,
+            interview.scheduledAt,
+        ].some((value) => String(value || '').toLowerCase().includes(term));
+    });
 
     const columns: Column<Interview>[] = [
         {
@@ -142,6 +157,8 @@ export default function InterviewsPage() {
                     <input
                         type="text"
                         placeholder="Search..."
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
                         className="px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-primary"
                     />
                     <Button onClick={() => router.push('/interviews/schedule')} className="bg-primary hover:bg-primary/90 text-white">
@@ -153,7 +170,7 @@ export default function InterviewsPage() {
 
             <DynamicTable<Interview>
                 id="interviews-table"
-                data={interviews}
+                data={filteredInterviews}
                 columns={columns}
                 // onRowClick={(row) => router.push(`/interviews/${row.id}`)}
                 isLoading={loading}

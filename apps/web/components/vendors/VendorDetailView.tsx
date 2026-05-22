@@ -11,9 +11,23 @@ interface VendorDetailViewProps {
     vendorId: string;
 }
 
+interface VendorRecord {
+    id: string;
+    name?: string;
+    serviceType?: string;
+    status?: string;
+    email?: string;
+    contactEmail?: string;
+    phone?: string;
+    contactPhone?: string;
+    website?: string;
+    address?: string;
+    streetAddress?: string;
+}
+
 export default function VendorDetailView({ vendorId }: VendorDetailViewProps) {
     const { userData } = useAuth();
-    const [vendor, setVendor] = useState<any>(null);
+    const [vendor, setVendor] = useState<VendorRecord | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -24,7 +38,7 @@ export default function VendorDetailView({ vendorId }: VendorDetailViewProps) {
                 const docRef = doc(db, 'teams', userData.teamId, 'vendors', vendorId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
-                    setVendor({ id: docSnap.id, ...docSnap.data() });
+                    setVendor({ id: docSnap.id, ...docSnap.data() } as VendorRecord);
                 }
             } catch (err) {
                 console.error("Error fetching vendor:", err);
@@ -38,6 +52,9 @@ export default function VendorDetailView({ vendorId }: VendorDetailViewProps) {
 
     if (loading) return <div className="p-8 text-center">Loading vendor details...</div>;
     if (!vendor) return <div className="p-8 text-center">Vendor not found.</div>;
+
+    const contactEmail = vendor.email || vendor.contactEmail;
+    const address = vendor.address || vendor.streetAddress;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -59,11 +76,13 @@ export default function VendorDetailView({ vendorId }: VendorDetailViewProps) {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-600 mb-6">
                         <div className="flex items-center gap-2">
                             <Mail size={16} />
-                            <a href={`mailto:${vendor.email}`} className="hover:text-primary transition-colors">{vendor.email}</a>
+                            {contactEmail ? (
+                                <a href={`mailto:${contactEmail}`} className="hover:text-primary transition-colors">{contactEmail}</a>
+                            ) : 'N/A'}
                         </div>
                         <div className="flex items-center gap-2">
                             <Phone size={16} />
-                            {vendor.phone || 'N/A'}
+                            {vendor.contactPhone || vendor.phone || 'N/A'}
                         </div>
                         <div className="flex items-center gap-2">
                             <Globe size={16} />
@@ -71,7 +90,7 @@ export default function VendorDetailView({ vendorId }: VendorDetailViewProps) {
                         </div>
                         <div className="flex items-center gap-2">
                             <MapPin size={16} />
-                            {vendor.address || 'N/A'}
+                            {address || 'N/A'}
                         </div>
                     </div>
                 </div>

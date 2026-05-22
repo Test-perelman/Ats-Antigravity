@@ -14,6 +14,7 @@ interface Option {
     title?: string;
     firstName?: string;
     lastName?: string;
+    clientName?: string;
 }
 
 export default function NewSubmissionPage() {
@@ -73,8 +74,10 @@ export default function NewSubmissionPage() {
                 ...formData,
                 candidateName: candName,
                 jobTitle: jobTitle,
-                clientName: (selectedJob as any)?.clientName || '', // If available from job data
+                clientName: selectedJob?.clientName || '',
                 createdAt: serverTimestamp(),
+                submittedAt: serverTimestamp(),
+                submittedBy: `${userData.firstName} ${userData.lastName}`.trim() || userData.email,
                 updatedAt: serverTimestamp(),
                 createdBy: userData.uid
             });
@@ -145,7 +148,7 @@ export default function NewSubmissionPage() {
                             >
                                 <option value="">Select Job...</option>
                                 {jobs.map(j => (
-                                    <option key={j.id} value={j.id}>{j.title} - {(j as any).clientName}</option>
+                                    <option key={j.id} value={j.id}>{j.title} - {j.clientName || 'No client'}</option>
                                 ))}
                             </select>
                         </div>

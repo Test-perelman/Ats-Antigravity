@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { db } from '@/lib/firebase/config';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
     Settings as SettingsIcon,
@@ -30,8 +30,7 @@ interface UserProfile {
     lastName: string;
     role: string;
     status?: 'active' | 'suspended' | 'pending';
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    lastLogin?: any;
+    lastLogin?: unknown;
 }
 
 interface AuditLog {
@@ -39,8 +38,15 @@ interface AuditLog {
     action: string;
     actor: string;
     target: string;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    timestamp: any;
+    timestamp: unknown;
+}
+
+function formatDateTime(value: unknown) {
+    if (!value) return '-';
+    const date = typeof value === 'object' && value && 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function'
+        ? (value as { toDate: () => Date }).toDate()
+        : new Date(String(value));
+    return Number.isNaN(date.getTime()) ? '-' : date.toLocaleString();
 }
 
 export default function SettingsPage() {
@@ -48,11 +54,13 @@ export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState('general');
     const [teamUsers, setTeamUsers] = useState<UserProfile[]>([]);
     const [loadingUsers, setLoadingUsers] = useState(false);
+    const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+    const [loadingAudit, setLoadingAudit] = useState(false);
+    const [actionNotice, setActionNotice] = useState('');
 
     // Fetch Team Users
     useEffect(() => {
         if (!userData?.teamId || activeTab !== 'users') return;
-        setLoadingUsers(true);
         const q = query(
             collection(db, 'users'),
             where('teamId', '==', userData.teamId)
@@ -67,6 +75,39 @@ export default function SettingsPage() {
             setLoadingUsers(false);
         });
         return () => unsubscribe();
+    }, [userData?.teamId, activeTab]);
+
+    useEffect(() => {
+        if (!userData?.teamId || activeTab !== 'audit') return;
+
+        const loadAudit = async () => {
+            const collectionNames = ['candidates', 'jobs', 'submissions', 'interviews', 'projects', 'invoices', 'immigration', 'onboarding'];
+            const snapshots = await Promise.all(collectionNames.map(async (collectionName) => {
+                const snapshot = await getDocs(collection(db, 'teams', userData.teamId, collectionName));
+                return snapshot.docs.map((item) => {
+                    const data = item.data();
+                    return {
+                        id: `${collectionName}-${item.id}`,
+                        action: `Updated ${collectionName.slice(0, -1)}`,
+                        actor: String(data.authorName || data.submittedBy || data.createdBy || 'Team user'),
+                        target: String(data.name || data.title || data.candidateName || data.invoiceNumber || item.id),
+                        timestamp: data.updatedAt || data.createdAt || data.submittedAt || data.scheduledAt,
+                    };
+                }) as AuditLog[];
+            }));
+
+            setAuditLogs(snapshots.flat().sort((a, b) => {
+                const aDate = new Date(formatDateTime(a.timestamp)).getTime() || 0;
+                const bDate = new Date(formatDateTime(b.timestamp)).getTime() || 0;
+                return bDate - aDate;
+            }).slice(0, 25));
+            setLoadingAudit(false);
+        };
+
+        loadAudit().catch((error) => {
+            console.error('Failed to load audit activity', error);
+            setLoadingAudit(false);
+        });
     }, [userData?.teamId, activeTab]);
 
     const renderGeneral = () => (
@@ -138,8 +179,19 @@ export default function SettingsPage() {
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuItem disabled={row.uid === userData?.uid}>Edit Role</DropdownMenuItem>
-                            <DropdownMenuItem disabled={row.uid === userData?.uid} className="text-red-600">Suspend User</DropdownMenuItem>
+                            <DropdownMenuItem
+                                disabled={row.uid === userData?.uid}
+                                onClick={() => setActionNotice('Role editing is disabled until the team member administration API is enabled.')}
+                            >
+                                Edit Role
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                                disabled={row.uid === userData?.uid}
+                                onClick={() => setActionNotice('User suspension is disabled until account status support is enabled in Postgres auth.')}
+                                className="text-red-600"
+                            >
+                                Suspend User
+                            </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
                 )
@@ -150,8 +202,13 @@ export default function SettingsPage() {
             <div className="space-y-4">
                 <div className="flex justify-between items-center">
                     <h2 className="text-xl font-bold">User Management</h2>
-                    <Button size="sm">Invite User</Button>
+                    <Button size="sm" onClick={() => setActionNotice('Email invitations are not configured. Ask the user to sign up and request access from the Join Team page.')}>Invite User</Button>
                 </div>
+                {actionNotice && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        {actionNotice}
+                    </div>
+                )}
                 <DynamicTable<UserProfile>
                     id="users-table"
                     data={teamUsers}
@@ -199,18 +256,15 @@ export default function SettingsPage() {
     );
 
     const renderAudit = () => {
-        // Mock audit logs
-        const mockLogs: AuditLog[] = [
-            { id: '1', action: 'Login', actor: 'John Doe', target: 'System', timestamp: new Date() },
-            { id: '2', action: 'Update Candidate', actor: 'Alice Smith', target: 'Jane Roe', timestamp: new Date(Date.now() - 3600000) },
-            { id: '3', action: 'Create Job', actor: 'John Doe', target: 'Frontend Dev', timestamp: new Date(Date.now() - 86400000) },
-        ];
-
         return (
             <div className="space-y-4">
                 <h2 className="text-xl font-bold">Audit Logs</h2>
                 <div className="space-y-2">
-                    {mockLogs.map(log => (
+                    {loadingAudit && <div className="text-sm text-gray-500">Loading recent activity...</div>}
+                    {!loadingAudit && auditLogs.length === 0 && (
+                        <div className="text-sm text-gray-500 border rounded-lg p-4">No recent record activity found.</div>
+                    )}
+                    {auditLogs.map(log => (
                         <div key={log.id} className="flex items-center justify-between p-3 border rounded-lg text-sm">
                             <div className="flex items-center gap-3">
                                 <Activity size={16} className="text-muted-foreground" />
@@ -219,7 +273,7 @@ export default function SettingsPage() {
                                 </span>
                             </div>
                             <span className="text-gray-500 text-xs">
-                                {log.timestamp.toLocaleString()}
+                                {formatDateTime(log.timestamp)}
                             </span>
                         </div>
                     ))}
@@ -302,8 +356,8 @@ export default function SettingsPage() {
                             <div className="text-center py-20">
                                 <CreditCard size={48} className="mx-auto text-gray-300 mb-4" />
                                 <h3 className="text-lg font-medium text-gray-900">Billing Portal</h3>
-                                <p className="text-gray-500">Manage your subscription and invoices.</p>
-                                <Button className="mt-4" disabled>Coming Soon</Button>
+                                <p className="text-gray-500 max-w-md mx-auto">Billing is disabled because no payment provider or customer portal is configured for this deployment.</p>
+                                <Button className="mt-4" disabled>Unavailable</Button>
                             </div>
                         )}
                     </div>

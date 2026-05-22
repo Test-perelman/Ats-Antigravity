@@ -50,6 +50,9 @@ export default function NewVendorPage() {
         try {
             await addDoc(collection(db, 'teams', userData.teamId, 'vendors'), {
                 ...formData,
+                contactPerson: formData.contactName,
+                email: formData.contactEmail || formData.email,
+                address: formData.streetAddress,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
                 createdBy: userData.uid

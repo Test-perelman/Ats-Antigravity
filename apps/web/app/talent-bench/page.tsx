@@ -1,26 +1,33 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { db } from '@/lib/firebase/config';
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, doc, updateDoc } from 'firebase/firestore';
 import DynamicTable, { Column } from '../../components/ui/DynamicTable';
 import DetailModal from '../../components/ui/DetailModal';
 import { Button } from '@/components/ui/button';
-import { Plus, Search, MoreHorizontal, Armchair, Briefcase, Globe, CheckCircle, AlertCircle, Clock } from 'lucide-react';
+import { Search, MoreHorizontal, Armchair, Globe, Clock } from 'lucide-react';
 import { Candidate } from '@/lib/firebase/hooks';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
     DropdownMenuLabel,
-    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+function toDate(value: unknown) {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    if (typeof value === 'object' && value && 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function') {
+        return (value as { toDate: () => Date }).toDate();
+    }
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
 export default function TalentBenchPage() {
-    const router = useRouter();
     const { userData } = useAuth();
     const [profiles, setProfiles] = useState<Candidate[]>([]);
     const [loading, setLoading] = useState(true);
@@ -59,7 +66,8 @@ export default function TalentBenchPage() {
                 // Note: 'hired' is the status for placed candidates
                 if (c.status === 'hired') {
                     if (c.currentProjectEndDate) {
-                        const endDate = c.currentProjectEndDate.toDate ? c.currentProjectEndDate.toDate() : new Date(c.currentProjectEndDate);
+                        const endDate = toDate(c.currentProjectEndDate);
+                        if (!endDate) return false;
                         const diffTime = endDate.getTime() - now.getTime();
                         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
                         return diffDays <= 30; // Included if ending in <= 30 days (or already ended)
@@ -105,11 +113,10 @@ export default function TalentBenchPage() {
         }
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const formatDate = (timestamp: any) => {
+    const formatDate = (timestamp: unknown) => {
         if (!timestamp) return '-';
-        if (timestamp.toDate) return timestamp.toDate().toLocaleDateString();
-        return new Date(timestamp).toLocaleDateString();
+        const date = toDate(timestamp);
+        return date ? date.toLocaleDateString() : '-';
     };
 
     const filteredProfiles = profiles.filter(p => {
@@ -164,7 +171,7 @@ export default function TalentBenchPage() {
                             {row.availabilityStatus || 'Unknown'}
                         </span>
                     </div>
-                    {row.availabilityDate && (
+                    {Boolean(row.availabilityDate) && (
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                             <Clock size={10} /> {formatDate(row.availabilityDate)}
                         </div>
@@ -181,7 +188,7 @@ export default function TalentBenchPage() {
                         <Globe size={12} className="text-muted-foreground" />
                         <span>{row.visaStatus || 'N/A'}</span>
                     </div>
-                    {row.visaExpiry && (
+                    {Boolean(row.visaExpiry) && (
                         <div className="text-xs text-muted-foreground">
                             Exp: {formatDate(row.visaExpiry)}
                         </div>

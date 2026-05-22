@@ -19,7 +19,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Button } from './button';
-import { Settings2, GripVertical, Check, Eye, EyeOff } from 'lucide-react';
+import { Settings2, GripVertical, Eye, EyeOff } from 'lucide-react';
 
 // --- Types ---
 
@@ -41,48 +41,9 @@ interface DynamicTableProps<T> {
     title?: string; // Optional title for the customization menu
 }
 
-interface ColumnConfig {
-    id: string;
-    isVisible: boolean;
-}
-
-// --- Sortable Header Item Component ---
-
-function SortableHeader({
-    column,
-    id
-}: {
-    column: Column<any>;
-    id: string;
-}) {
-    const {
-        attributes,
-        listeners,
-        setNodeRef,
-        transform,
-        transition,
-    } = useSortable({ id });
-
-    const style = {
-        transform: CSS.Transform.toString(transform),
-        transition,
-        cursor: 'move'
-    };
-
-    return (
-        <th
-            ref={setNodeRef}
-            style={style}
-            {...attributes}
-            {...listeners}
-            className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-50 border-b select-none group hover:bg-gray-100 transition-colors"
-        >
-            <div className="flex items-center gap-2">
-                <GripVertical size={14} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                {column.label}
-            </div>
-        </th>
-    );
+function shouldIgnoreRowClick(target: EventTarget | null) {
+    if (!(target instanceof HTMLElement)) return false;
+    return Boolean(target.closest('button, a, input, select, textarea, [role="button"], [role="menuitem"], [data-row-action="true"]'));
 }
 
 // --- Main Component ---
@@ -94,7 +55,6 @@ export default function DynamicTable<T extends { id: string | number }>({
     onRowClick,
     isLoading = false,
     emptyMessage = "No data found.",
-    title = "Data Table"
 }: DynamicTableProps<T>) {
 
     // --- State ---
@@ -284,10 +244,17 @@ export default function DynamicTable<T extends { id: string | number }>({
                                     <tr
                                         key={row.id}
                                         className={`hover:bg-gray-50 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
-                                        onClick={() => onRowClick && onRowClick(row)}
+                                        onClick={(event) => {
+                                            if (shouldIgnoreRowClick(event.target)) return;
+                                            onRowClick?.(row);
+                                        }}
                                     >
                                         {visibleColumns.map((col) => (
-                                            <td key={col.id} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${col.className || ''}`}>
+                                            <td
+                                                key={col.id}
+                                                data-row-action={col.id === 'actions' ? 'true' : undefined}
+                                                className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 ${col.className || ''}`}
+                                            >
                                                 {col.render ? col.render(row) : (row[col.accessor || 'id'] as React.ReactNode)}
                                             </td>
                                         ))}

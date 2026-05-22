@@ -60,6 +60,7 @@ export default function NewImmigrationCasePage() {
             await addDoc(collection(db, 'teams', userData.teamId, 'immigration'), {
                 ...formData,
                 candidateName: selectedCandidate?.fullName || 'Unknown',
+                description: formData.notes,
                 createdAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
                 createdBy: userData.uid

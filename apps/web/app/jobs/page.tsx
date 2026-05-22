@@ -16,9 +16,10 @@ interface Job {
     department: string;
     location: string;
     status: 'Open' | 'Closed' | 'Draft';
-    createdAt: any;
+    createdAt: unknown;
     clientName?: string;
     maxRate?: string;
+    billRateMax?: string | number;
     description?: string;
     _count?: {
         submissions?: number;
@@ -32,6 +33,7 @@ export default function JobsPage() {
     const [loading, setLoading] = useState(true);
     const [selectedJob, setSelectedJob] = useState<Job | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (!userData?.teamId) return;
@@ -58,6 +60,21 @@ export default function JobsPage() {
         return () => unsubscribe();
     }, [userData?.teamId]);
 
+    const filteredJobs = jobs.filter((job) => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+        return [
+            job.title,
+            job.department,
+            job.location,
+            job.status,
+            job.clientName,
+            job.description,
+            job.maxRate,
+            job.billRateMax,
+        ].some((value) => String(value || '').toLowerCase().includes(term));
+    });
+
     const columns: Column<Job>[] = [
         {
             id: 'title',
@@ -81,9 +98,9 @@ export default function JobsPage() {
                     <div className="flex items-center gap-1">
                         <MapPin size={12} /> {row.location || 'Remote'}
                     </div>
-                    {row.maxRate && (
+                    {(row.maxRate || row.billRateMax) && (
                         <div className="flex items-center gap-1">
-                            <DollarSign size={12} /> {row.maxRate}
+                            <DollarSign size={12} /> {row.maxRate || row.billRateMax}
                         </div>
                     )}
                 </div>
@@ -140,6 +157,8 @@ export default function JobsPage() {
                     <input
                         type="text"
                         placeholder="Search jobs..."
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
                         className="pl-10 w-full p-2 border rounded"
                     />
                 </div>
@@ -148,7 +167,7 @@ export default function JobsPage() {
             {/* Dynamic Table */}
             <DynamicTable<Job>
                 id="jobs-table"
-                data={jobs}
+                data={filteredJobs}
                 columns={columns}
                 onRowClick={(row) => {
                     setSelectedJob(row);

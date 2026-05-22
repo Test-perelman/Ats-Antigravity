@@ -24,6 +24,7 @@ export default function InvoicesPage() {
     const { userData } = useAuth();
     const [invoices, setInvoices] = useState<Invoice[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (!userData?.teamId) return;
@@ -55,6 +56,37 @@ export default function InvoicesPage() {
             case 'overdue': return 'bg-red-100 text-red-800';
             default: return 'bg-gray-100 text-gray-800';
         }
+    };
+
+    const filteredInvoices = invoices.filter((invoice) => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+        return [
+            invoice.invoiceNumber,
+            invoice.clientName,
+            invoice.issueDate,
+            invoice.dueDate,
+            invoice.amount,
+            invoice.status,
+        ].some((value) => String(value || '').toLowerCase().includes(term));
+    });
+
+    const downloadInvoice = (invoice: Invoice) => {
+        const lines = [
+            ['Invoice Number', invoice.invoiceNumber],
+            ['Client', invoice.clientName],
+            ['Issue Date', invoice.issueDate],
+            ['Due Date', invoice.dueDate],
+            ['Amount', String(invoice.amount)],
+            ['Status', invoice.status],
+        ];
+        const blob = new Blob([lines.map((line) => line.join(',')).join('\n')], { type: 'text/csv;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${invoice.invoiceNumber || 'invoice'}.csv`;
+        anchor.click();
+        URL.revokeObjectURL(url);
     };
 
     const columns: Column<Invoice>[] = [
@@ -95,9 +127,9 @@ export default function InvoicesPage() {
         {
             id: 'actions',
             label: 'Actions',
-            render: () => (
+            render: (row) => (
                 <div className="text-right">
-                    <Button variant="ghost" size="sm">
+                    <Button variant="ghost" size="sm" onClick={() => downloadInvoice(row)}>
                         <Download size={16} />
                     </Button>
                 </div>
@@ -125,6 +157,8 @@ export default function InvoicesPage() {
                     <input
                         type="text"
                         placeholder="Search invoices..."
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
                         className="pl-10 w-full p-2 border rounded"
                     />
                 </div>
@@ -132,7 +166,7 @@ export default function InvoicesPage() {
 
             <DynamicTable<Invoice>
                 id="invoices-table"
-                data={invoices}
+                data={filteredInvoices}
                 columns={columns}
                 // onRowClick={(row) => console.log('View invoice', row.id)}
                 isLoading={loading}

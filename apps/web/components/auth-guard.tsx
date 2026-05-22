@@ -4,15 +4,28 @@ import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../lib/firebase/AuthContext';
 
-export default function AuthGuard({ children }: { children: React.ReactNode }) {
+type AppRole = 'master_admin' | 'admin' | 'manager' | 'recruiter' | 'viewer' | 'user';
+
+export default function AuthGuard({
+    children,
+    requiredRoles,
+}: {
+    children: React.ReactNode;
+    requiredRoles?: AppRole[];
+}) {
     const router = useRouter();
-    const { user, loading } = useAuth();
+    const { user, userData, loading } = useAuth();
+    const isAuthorized = !requiredRoles?.length || (userData?.role && requiredRoles.includes(userData.role));
 
     useEffect(() => {
         if (!loading && !user) {
             router.push('/login');
         }
-    }, [user, loading, router]);
+
+        if (!loading && user && !isAuthorized) {
+            router.replace('/dashboard');
+        }
+    }, [user, loading, router, isAuthorized]);
 
     if (loading) {
         return (
@@ -22,7 +35,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         );
     }
 
-    if (!user) {
+    if (!user || !isAuthorized) {
         return null;
     }
 

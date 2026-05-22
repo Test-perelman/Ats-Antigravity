@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/firebase/AuthContext';
 import { db } from '@/lib/firebase/config';
 import { doc, getDoc, collection, getDocs, addDoc, query, where, serverTimestamp } from 'firebase/firestore';
@@ -12,18 +12,19 @@ interface Job {
     id: string;
     title: string;
     location: string;
-    maxRate: string;
+    maxRate?: string | number;
+    billRateMax?: string | number;
     minExperience: number;
     description: string;
     visaRequirements: string;
     status: string;
-    createdAt: any;
+    createdAt?: unknown;
 }
 
 interface Submission {
     id: string;
     status: string;
-    createdAt: any;
+    createdAt?: unknown;
     candidateId: string;
     candidateName: string;
     candidateEmail: string;
@@ -58,14 +59,7 @@ export default function JobDetailView({ jobId }: JobDetailViewProps) {
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (userData?.teamId && jobId) {
-            fetchJob();
-            fetchSubmissions();
-        }
-    }, [jobId, userData?.teamId]);
-
-    const fetchJob = async () => {
+    const fetchJob = useCallback(async () => {
         if (!userData?.teamId) return;
         try {
             const docRef = doc(db, 'teams', userData.teamId, 'jobs', jobId);
@@ -80,9 +74,9 @@ export default function JobDetailView({ jobId }: JobDetailViewProps) {
         } finally {
             setLoading(false);
         }
-    };
+    }, [jobId, userData?.teamId]);
 
-    const fetchSubmissions = async () => {
+    const fetchSubmissions = useCallback(async () => {
         if (!userData?.teamId) return;
         try {
             const q = query(
@@ -95,9 +89,9 @@ export default function JobDetailView({ jobId }: JobDetailViewProps) {
         } catch (error) {
             console.error('Failed to fetch submissions', error);
         }
-    };
+    }, [jobId, userData?.teamId]);
 
-    const fetchCandidates = async () => {
+    const fetchCandidates = useCallback(async () => {
         if (!userData?.teamId) return;
         try {
             const querySnapshot = await getDocs(collection(db, 'teams', userData.teamId, 'candidates'));
@@ -106,7 +100,14 @@ export default function JobDetailView({ jobId }: JobDetailViewProps) {
         } catch (error) {
             console.error('Failed to fetch candidates', error);
         }
-    };
+    }, [userData?.teamId]);
+
+    useEffect(() => {
+        if (userData?.teamId && jobId) {
+            void fetchJob();
+            void fetchSubmissions();
+        }
+    }, [fetchJob, fetchSubmissions, jobId, userData?.teamId]);
 
     const openSubmitModal = () => {
         setIsSubmitModalOpen(true);
@@ -134,8 +135,10 @@ export default function JobDetailView({ jobId }: JobDetailViewProps) {
                 candidateEmail: candidateDetails.email,
                 submittedRate: submittedRate,
                 status: 'submitted',
-                submittedBy: userData.uid,
+                submittedBy: `${userData.firstName} ${userData.lastName}`.trim() || userData.email,
                 createdAt: serverTimestamp(),
+                submittedAt: serverTimestamp(),
+                createdBy: userData.uid,
                 updatedAt: serverTimestamp()
             });
 
@@ -144,7 +147,7 @@ export default function JobDetailView({ jobId }: JobDetailViewProps) {
             setSubmittedRate('');
             setSelectedCandidate('');
             fetchSubmissions();
-        } catch (error: any) {
+        } catch (error) {
             console.error(error);
             alert('Failed to submit candidate');
         } finally {
@@ -168,7 +171,7 @@ export default function JobDetailView({ jobId }: JobDetailViewProps) {
                     <h1 className="text-2xl font-bold mb-2">{job.title}</h1>
                     <div className="flex items-center gap-6 text-muted-foreground text-sm">
                         <span className="flex items-center gap-1"><MapPin size={16} /> {job.location || 'Remote'}</span>
-                        <span className="flex items-center gap-1"><DollarSign size={16} /> {job.maxRate || 'N/A'}</span>
+                        <span className="flex items-center gap-1"><DollarSign size={16} /> {job.maxRate || job.billRateMax || 'N/A'}</span>
                         <span className="flex items-center gap-1"><Clock size={16} /> {job.minExperience}+ Years</span>
                         <span className="capitalize px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-xs font-semibold">{job.status}</span>
                     </div>

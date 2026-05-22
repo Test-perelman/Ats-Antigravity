@@ -20,7 +20,7 @@ interface Candidate {
     visaStatus?: string;
     experience?: number;
     status: string;
-    createdAt: any;
+    createdAt: unknown;
 }
 
 export default function CandidatesPage() {
@@ -30,6 +30,7 @@ export default function CandidatesPage() {
     const [loading, setLoading] = useState(true);
     const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         if (!userData?.teamId) return;
@@ -56,12 +57,19 @@ export default function CandidatesPage() {
         return () => unsubscribe();
     }, [userData?.teamId]);
 
-    // Format Firestore Timestamp to date string
-    const formatDate = (timestamp: any) => {
-        if (!timestamp) return '-';
-        if (timestamp.toDate) return timestamp.toDate().toLocaleDateString();
-        return new Date(timestamp).toLocaleDateString(); // Fallback
-    };
+    const filteredCandidates = candidates.filter((candidate) => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+        return [
+            candidate.firstName,
+            candidate.lastName,
+            candidate.email,
+            candidate.title,
+            candidate.visaStatus,
+            candidate.status,
+            ...(candidate.skills || []),
+        ].some((value) => String(value || '').toLowerCase().includes(term));
+    });
 
     // Columns Definition
     const columns: Column<Candidate>[] = [
@@ -157,6 +165,8 @@ export default function CandidatesPage() {
                     <input
                         type="text"
                         placeholder="Search candidates..."
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
                         className="pl-10 w-full p-2 border rounded"
                     />
                 </div>
@@ -165,7 +175,7 @@ export default function CandidatesPage() {
             {/* Dynamic Table */}
             <DynamicTable<Candidate>
                 id="candidates-table"
-                data={candidates}
+                data={filteredCandidates}
                 columns={columns}
                 onRowClick={(row) => {
                     setSelectedCandidate(row);

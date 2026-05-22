@@ -19,6 +19,10 @@
       }
     ],
     "paths": {
+      "firebase/app": ["./lib/postgres/firebase/app"],
+      "firebase/auth": ["./lib/postgres/firebase/auth"],
+      "firebase/firestore": ["./lib/postgres/firebase/firestore"],
+      "firebase/storage": ["./lib/postgres/firebase/storage"],
       "@/*": ["./*"]
     }
   },

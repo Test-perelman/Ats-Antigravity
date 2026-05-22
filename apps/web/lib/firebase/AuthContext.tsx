@@ -1,29 +1,45 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import {
-    User,
-    onAuthStateChanged,
-    signInWithEmailAndPassword,
-    createUserWithEmailAndPassword,
-    signOut as firebaseSignOut,
-    sendPasswordResetEmail
-} from 'firebase/auth';
-import { doc, getDoc, setDoc, collection } from 'firebase/firestore';
-import { auth, db } from './config';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
-interface UserData {
+type AppRole = 'master_admin' | 'admin' | 'manager' | 'recruiter' | 'viewer' | 'user';
+
+interface AuthUser {
+    uid: string;
+    id?: string;
+    email: string | null;
+    displayName?: string | null;
+    photoURL?: string | null;
+}
+
+interface ApiUser {
+    id: string;
+    uid?: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+    systemRole?: AppRole;
+    role?: AppRole;
+    teamId?: string;
+    memberships?: Array<{ teamId: string; role: AppRole }>;
+    createdAt?: string;
+}
+
+export interface UserData {
     uid: string;
     email: string;
     firstName: string;
     lastName: string;
-    role: 'master_admin' | 'admin' | 'manager' | 'recruiter';
+    role: AppRole;
+    systemRole: AppRole;
     teamId: string;
-    createdAt: Date;
+    memberships: Array<{ teamId: string; role: AppRole }>;
+    createdAt?: string;
 }
 
 interface AuthContextType {
-    user: User | null;
+    user: AuthUser | null;
     userData: UserData | null;
     loading: boolean;
     signIn: (email: string, password: string) => Promise<void>;
@@ -34,113 +50,149 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function authUrl() {
+    return '/api/postgres/auth';
+}
+
+function clearStoredSession() {
+    window.localStorage.removeItem('token');
+    window.localStorage.removeItem('authUser');
+    window.localStorage.removeItem('teamId');
+}
+
+function normalizeRole(apiUser: ApiUser): AppRole {
+    if (apiUser.systemRole === 'master_admin') return 'master_admin';
+    return apiUser.role || apiUser.systemRole || 'recruiter';
+}
+
+function toAuthUser(apiUser: ApiUser): AuthUser {
+    const uid = apiUser.uid || apiUser.id;
+    return {
+        uid,
+        id: apiUser.id || uid,
+        email: apiUser.email,
+        displayName: apiUser.displayName || `${apiUser.firstName || ''} ${apiUser.lastName || ''}`.trim(),
+    };
+}
+
+function toUserData(apiUser: ApiUser): UserData {
+    const uid = apiUser.uid || apiUser.id;
+    return {
+        uid,
+        email: apiUser.email,
+        firstName: apiUser.firstName || '',
+        lastName: apiUser.lastName || '',
+        role: normalizeRole(apiUser),
+        systemRole: apiUser.systemRole || 'user',
+        teamId: apiUser.teamId || '',
+        memberships: apiUser.memberships || [],
+        createdAt: apiUser.createdAt,
+    };
+}
+
+async function parseAuthResponse(response: Response) {
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(data.message || 'Authentication request failed');
+    }
+    return data as { access_token?: string; user: ApiUser };
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<AuthUser | null>(null);
     const [userData, setUserData] = useState<UserData | null>(null);
     const [loading, setLoading] = useState(true);
 
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            setUser(firebaseUser);
+    const persistSession = useCallback((token: string | undefined, apiUser: ApiUser) => {
+        const nextUser = toAuthUser(apiUser);
+        const nextUserData = toUserData(apiUser);
 
-            if (firebaseUser) {
-                // Fetch user data from Firestore
-                try {
-                    const userDocRef = doc(db, 'users', firebaseUser.uid);
-                    const userDoc = await getDoc(userDocRef);
-                    if (userDoc.exists()) {
-                        setUserData(userDoc.data() as UserData);
-                    } else {
-                        // RECOVERY: User exists in Auth but not in Firestore (legacy/error case)
-                        console.warn('User missing in Firestore, attempting recovery...');
+        if (token) window.localStorage.setItem('token', token);
+        window.localStorage.setItem('authUser', JSON.stringify(nextUser));
+        if (nextUserData.teamId) {
+            window.localStorage.setItem('teamId', nextUserData.teamId);
+        } else {
+            window.localStorage.removeItem('teamId');
+        }
 
-                        // Create a new Team
-                        const teamRef = doc(collection(db, 'teams'));
-                        await setDoc(teamRef, {
-                            name: `${firebaseUser.displayName || 'User'}'s Team`,
-                            createdAt: new Date(),
-                            createdBy: firebaseUser.uid,
-                            members: [firebaseUser.uid]
-                        });
-
-                        // Create user document
-                        const newUserData: UserData = {
-                            uid: firebaseUser.uid,
-                            email: firebaseUser.email!,
-                            firstName: firebaseUser.displayName?.split(' ')[0] || 'User',
-                            lastName: firebaseUser.displayName?.split(' ')[1] || '',
-                            role: 'admin',
-                            teamId: teamRef.id,
-                            createdAt: new Date()
-                        };
-
-                        await setDoc(userDocRef, newUserData);
-                        setUserData(newUserData);
-                        console.log('Recovery successful: User and Team created.');
-                    }
-                } catch (error) {
-                    console.error('Error fetching/recovering user data:', error);
-                }
-            } else {
-                setUserData(null);
-            }
-
-            setLoading(false);
-        });
-
-        return () => unsubscribe();
+        setUser(nextUser);
+        setUserData(nextUserData);
     }, []);
 
-    const signIn = async (email: string, password: string) => {
-        await signInWithEmailAndPassword(auth, email, password);
-    };
+    useEffect(() => {
+        let active = true;
 
-    const signUp = async (email: string, password: string, firstName: string, lastName: string) => {
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+        async function restoreSession() {
+            const token = window.localStorage.getItem('token');
+            if (!token) {
+                if (active) setLoading(false);
+                return;
+            }
 
-        // Create a new Team for this user
-        const teamRef = doc(collection(db, 'teams'));
-        await setDoc(teamRef, {
-            name: `${firstName}'s Team`,
-            createdAt: new Date(),
-            createdBy: user.uid,
-            members: [user.uid]
-        });
+            try {
+                const response = await fetch(authUrl(), {
+                    headers: { authorization: `Bearer ${token}` },
+                });
+                const data = await parseAuthResponse(response);
+                if (active) persistSession(undefined, data.user);
+            } catch (error) {
+                console.error('Session restore failed:', error);
+                clearStoredSession();
+                if (active) {
+                    setUser(null);
+                    setUserData(null);
+                }
+            } finally {
+                if (active) setLoading(false);
+            }
+        }
 
-        // Create user document in Firestore with Team ID
-        const newUserData: UserData = {
-            uid: user.uid,
-            email: user.email!,
-            firstName,
-            lastName,
-            role: 'admin', // First user is Admin
-            teamId: teamRef.id,
-            createdAt: new Date()
+        restoreSession();
+        return () => {
+            active = false;
         };
+    }, [persistSession]);
 
-        await setDoc(doc(db, 'users', user.uid), newUserData);
-        setUserData(newUserData);
-    };
+    const signIn = useCallback(async (email: string, password: string) => {
+        const response = await fetch(authUrl(), {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'login', email, password }),
+        });
+        const data = await parseAuthResponse(response);
+        persistSession(data.access_token, data.user);
+    }, [persistSession]);
 
-    const signOut = async () => {
-        await firebaseSignOut(auth);
+    const signUp = useCallback(async (email: string, password: string, firstName: string, lastName: string) => {
+        const response = await fetch(authUrl(), {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ action: 'signup', email, password, firstName, lastName }),
+        });
+        const data = await parseAuthResponse(response);
+        persistSession(data.access_token, data.user);
+    }, [persistSession]);
+
+    const signOut = useCallback(async () => {
+        clearStoredSession();
+        setUser(null);
         setUserData(null);
-    };
+    }, []);
 
-    const resetPassword = async (email: string) => {
-        await sendPasswordResetEmail(auth, email);
-    };
+    const resetPassword = useCallback(async (_email: string) => {
+        void _email;
+        throw new Error('Password reset email is not configured for this Postgres auth setup.');
+    }, []);
 
-    const value = {
+    const value = useMemo(() => ({
         user,
         userData,
         loading,
         signIn,
         signUp,
         signOut,
-        resetPassword
-    };
+        resetPassword,
+    }), [loading, resetPassword, signIn, signOut, signUp, user, userData]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

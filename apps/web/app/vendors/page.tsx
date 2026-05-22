@@ -15,8 +15,12 @@ interface Vendor {
     name: string;
     serviceType?: string;
     contactPerson?: string;
+    contactName?: string;
     email?: string;
-    createdAt?: any;
+    contactEmail?: string;
+    streetAddress?: string;
+    address?: string;
+    createdAt?: unknown;
 }
 
 export default function VendorsPage() {
@@ -24,6 +28,7 @@ export default function VendorsPage() {
     const { userData } = useAuth();
     const [vendors, setVendors] = useState<Vendor[]>([]);
     const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
     const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -51,6 +56,21 @@ export default function VendorsPage() {
         return () => unsubscribe();
     }, [userData?.teamId]);
 
+    const filteredVendors = vendors.filter((vendor) => {
+        const term = searchTerm.trim().toLowerCase();
+        if (!term) return true;
+        return [
+            vendor.name,
+            vendor.serviceType,
+            vendor.contactPerson,
+            vendor.contactName,
+            vendor.email,
+            vendor.contactEmail,
+            vendor.streetAddress,
+            vendor.address,
+        ].some((value) => String(value || '').toLowerCase().includes(term));
+    });
+
     const columns: Column<Vendor>[] = [
         {
             id: 'name',
@@ -72,8 +92,8 @@ export default function VendorsPage() {
             label: 'Contact',
             render: (row) => (
                 <div className="text-sm">
-                    {row.contactPerson && <div className="font-medium">{row.contactPerson}</div>}
-                    {row.email && <div className="text-muted-foreground">{row.email}</div>}
+                    {(row.contactPerson || row.contactName) && <div className="font-medium">{row.contactPerson || row.contactName}</div>}
+                    {(row.email || row.contactEmail) && <div className="text-muted-foreground">{row.email || row.contactEmail}</div>}
                 </div>
             )
         },
@@ -105,6 +125,8 @@ export default function VendorsPage() {
                     <input
                         type="text"
                         placeholder="Search vendors..."
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
                         className="pl-10 w-full p-2 border rounded"
                     />
                 </div>
@@ -112,7 +134,7 @@ export default function VendorsPage() {
 
             <DynamicTable<Vendor>
                 id="vendors-table"
-                data={vendors}
+                data={filteredVendors}
                 columns={columns}
                 isLoading={loading}
                 onRowClick={(row) => {

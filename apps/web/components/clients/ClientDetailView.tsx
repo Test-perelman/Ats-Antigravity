@@ -11,9 +11,22 @@ interface ClientDetailViewProps {
     clientId: string;
 }
 
+interface ClientRecord {
+    id: string;
+    name?: string;
+    industry?: string;
+    email?: string;
+    phone?: string;
+    website?: string;
+    address?: string;
+    location?: string;
+    description?: string;
+    notes?: string;
+}
+
 export default function ClientDetailView({ clientId }: ClientDetailViewProps) {
     const { userData } = useAuth();
-    const [client, setClient] = useState<any>(null);
+    const [client, setClient] = useState<ClientRecord | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -24,7 +37,7 @@ export default function ClientDetailView({ clientId }: ClientDetailViewProps) {
                 const docRef = doc(db, 'teams', userData.teamId, 'clients', clientId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
-                    setClient({ id: docSnap.id, ...docSnap.data() });
+                    setClient({ id: docSnap.id, ...docSnap.data() } as ClientRecord);
                 }
             } catch (err) {
                 console.error("Error fetching client:", err);
@@ -38,6 +51,9 @@ export default function ClientDetailView({ clientId }: ClientDetailViewProps) {
 
     if (loading) return <div className="p-8 text-center">Loading client details...</div>;
     if (!client) return <div className="p-8 text-center">Client not found.</div>;
+
+    const location = client.location || client.address;
+    const description = client.description || client.notes;
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -64,17 +80,19 @@ export default function ClientDetailView({ clientId }: ClientDetailViewProps) {
                         </div>
                         <div className="flex items-center gap-2">
                             <Globe size={16} />
-                            <a href={client.website} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">{client.website || 'N/A'}</a>
+                            {client.website ? (
+                                <a href={client.website} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">{client.website}</a>
+                            ) : 'N/A'}
                         </div>
                         <div className="flex items-center gap-2">
                             <MapPin size={16} />
-                            {client.location || 'N/A'}
+                            {location || 'N/A'}
                         </div>
                     </div>
 
                     <div>
                         <h3 className="font-semibold text-gray-900 mb-2">Description</h3>
-                        <p className="text-gray-600">{client.description || 'No description provided.'}</p>
+                        <p className="text-gray-600">{description || 'No description provided.'}</p>
                     </div>
                 </div>
             </div>

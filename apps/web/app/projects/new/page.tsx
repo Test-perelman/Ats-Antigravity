@@ -6,7 +6,7 @@ import { useAuth } from '../../../lib/firebase/AuthContext';
 import { db } from '../../../lib/firebase/config';
 import { collection, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '../../../components/ui/button';
-import { ArrowLeft, FolderKanban, Calendar, FileText, Upload, X, Paperclip } from 'lucide-react';
+import { ArrowLeft, FolderKanban, Calendar, FileText } from 'lucide-react';
 
 interface Client {
     id: string;
@@ -30,8 +30,6 @@ export default function NewProjectPage() {
         notes: ''
     });
 
-    const [attachments, setAttachments] = useState<File[]>([]);
-
     useEffect(() => {
         if (!userData?.teamId) return;
 
@@ -51,16 +49,6 @@ export default function NewProjectPage() {
         fetchClients();
     }, [userData?.teamId]);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            setAttachments([...attachments, ...Array.from(e.target.files)]);
-        }
-    };
-
-    const removeAttachment = (index: number) => {
-        setAttachments(attachments.filter((_, i) => i !== index));
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -74,14 +62,6 @@ export default function NewProjectPage() {
         try {
             const selectedClient = clients.find(c => c.id === formData.clientId);
 
-            // Mock uploading attachments
-            const attachmentMetadata = attachments.map(f => ({
-                name: f.name,
-                size: f.size,
-                type: f.type,
-                uploadedAt: new Date().toISOString()
-            }));
-
             const docRef = await addDoc(collection(db, 'teams', userData.teamId, 'projects'), {
                 name: formData.name,
                 clientId: formData.clientId,
@@ -90,9 +70,10 @@ export default function NewProjectPage() {
                 endDate: formData.endDate ? new Date(formData.endDate) : null,
                 status: formData.status,
                 budget: Number(formData.budget),
+                value: Number(formData.budget),
                 createdAt: serverTimestamp(),
-                createdBy: userData.uid,
-                attachments: attachmentMetadata
+                updatedAt: serverTimestamp(),
+                createdBy: userData.uid
             });
 
             // Add initial notes if present
@@ -256,39 +237,11 @@ export default function NewProjectPage() {
                     <div className={activeTab === 'docs' ? 'block space-y-6' : 'hidden'}>
                         <div>
                             <label className="block text-sm font-semibold text-gray-700 mb-2">Project Documents (Contracts, SOW)</label>
-                            <div className="border-2 border-dashed border-gray-200 rounded-xl p-8 text-center hover:bg-gray-50 transition-colors cursor-pointer relative">
-                                <input
-                                    type="file"
-                                    multiple
-                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                    onChange={handleFileChange}
-                                />
-                                <Upload className="mx-auto h-10 w-10 text-gray-400 mb-3" />
-                                <p className="text-sm font-medium text-gray-900">Click to upload or drag and drop</p>
-                                <p className="text-xs text-gray-500 mt-1">PDF, DOCX up to 10MB</p>
+                            <div className="border border-dashed border-gray-200 rounded-xl p-8 text-center bg-gray-50">
+                                <FileText className="mx-auto h-10 w-10 text-gray-400 mb-3" />
+                                <p className="text-sm font-medium text-gray-900">Document storage is not configured</p>
+                                <p className="text-xs text-gray-500 mt-1">Track contract references in notes until storage is enabled.</p>
                             </div>
-
-                            {/* File List */}
-                            {attachments.length > 0 && (
-                                <div className="mt-4 space-y-2">
-                                    {attachments.map((file, idx) => (
-                                        <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
-                                            <div className="flex items-center gap-3">
-                                                <Paperclip size={16} className="text-primary" />
-                                                <span className="text-sm font-medium text-gray-700">{file.name}</span>
-                                                <span className="text-xs text-gray-400">({(file.size / 1024).toFixed(1)} KB)</span>
-                                            </div>
-                                            <button
-                                                type="button"
-                                                onClick={() => removeAttachment(idx)}
-                                                className="text-gray-400 hover:text-red-500"
-                                            >
-                                                <X size={16} />
-                                            </button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
                         </div>
 
                         <div>

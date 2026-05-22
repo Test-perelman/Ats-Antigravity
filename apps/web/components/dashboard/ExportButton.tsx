@@ -3,14 +3,14 @@
 import React, { useState } from 'react';
 
 interface ExportButtonProps {
-    onExport: (format: 'csv' | 'pdf') => void;
+    onExport: (format: 'csv' | 'json') => void;
     loading?: boolean;
 }
 
 export default function ExportButton({ onExport, loading = false }: ExportButtonProps) {
     const [showMenu, setShowMenu] = useState(false);
 
-    const handleExport = (format: 'csv' | 'pdf') => {
+    const handleExport = (format: 'csv' | 'json') => {
         onExport(format);
         setShowMenu(false);
     };
@@ -45,11 +45,11 @@ export default function ExportButton({ onExport, loading = false }: ExportButton
                         <span>Export as CSV</span>
                     </button>
                     <button
-                        onClick={() => handleExport('pdf')}
+                        onClick={() => handleExport('json')}
                         className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
                     >
                         <span>📄</span>
-                        <span>Export as PDF</span>
+                        <span>Export as JSON</span>
                     </button>
                 </div>
             )}

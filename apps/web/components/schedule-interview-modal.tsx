@@ -5,13 +5,20 @@ import { Button } from './ui/button';
 import { X } from 'lucide-react';
 import { useAuth } from '../lib/firebase/AuthContext';
 import { db } from '../lib/firebase/config';
-import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 interface Props {
     submissionId: string;
     isOpen: boolean;
     onClose: () => void;
     onSuccess: () => void;
+}
+
+interface SubmissionSnapshot {
+    candidateId?: string;
+    jobId?: string;
+    candidateName?: string;
+    jobTitle?: string;
 }
 
 export default function ScheduleInterviewModal({ submissionId, isOpen, onClose, onSuccess }: Props) {
@@ -32,10 +39,18 @@ export default function ScheduleInterviewModal({ submissionId, isOpen, onClose, 
 
         setLoading(true);
         try {
+            const submissionRef = doc(db, 'teams', userData.teamId, 'submissions', submissionId);
+            const submissionSnap = await getDoc(submissionRef);
+            const submission = submissionSnap.exists() ? submissionSnap.data() as SubmissionSnapshot : {};
+
             // 1. Create Interview Document
             await addDoc(collection(db, 'teams', userData.teamId, 'interviews'), {
                 submissionId,
                 ...formData,
+                candidateId: submission.candidateId || '',
+                jobId: submission.jobId || '',
+                candidateName: submission.candidateName || 'Unknown',
+                jobTitle: submission.jobTitle || 'Unknown',
                 scheduledAt: new Date(formData.scheduledAt).toISOString(), // Keep as string or use Timestamp
                 status: 'scheduled',
                 createdBy: userData.uid,
@@ -43,7 +58,6 @@ export default function ScheduleInterviewModal({ submissionId, isOpen, onClose, 
             });
 
             // 2. Update Submission Status
-            const submissionRef = doc(db, 'teams', userData.teamId, 'submissions', submissionId);
             await updateDoc(submissionRef, {
                 status: 'interviewing',
                 updatedAt: serverTimestamp()
@@ -52,7 +66,7 @@ export default function ScheduleInterviewModal({ submissionId, isOpen, onClose, 
             alert('Interview scheduled successfully!');
             onSuccess();
             onClose();
-        } catch (error: any) {
+        } catch (error) {
             console.error('Failed to schedule interview', error);
             alert('Failed to schedule interview');
         } finally {

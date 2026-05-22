@@ -11,9 +11,19 @@ interface ImmigrationDetailViewProps {
     caseId: string;
 }
 
+interface ImmigrationCaseRecord {
+    id: string;
+    candidateName?: string;
+    visaType?: string;
+    status?: string;
+    expiryDate?: string;
+    description?: string;
+    notes?: string;
+}
+
 export default function ImmigrationDetailView({ caseId }: ImmigrationDetailViewProps) {
     const { userData } = useAuth();
-    const [caseData, setCaseData] = useState<any>(null);
+    const [caseData, setCaseData] = useState<ImmigrationCaseRecord | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -24,7 +34,7 @@ export default function ImmigrationDetailView({ caseId }: ImmigrationDetailViewP
                 const docRef = doc(db, 'teams', userData.teamId, 'immigration', caseId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
-                    setCaseData({ id: docSnap.id, ...docSnap.data() });
+                    setCaseData({ id: docSnap.id, ...docSnap.data() } as ImmigrationCaseRecord);
                 }
             } catch (err) {
                 console.error("Error fetching immigration case:", err);
@@ -49,6 +59,8 @@ export default function ImmigrationDetailView({ caseId }: ImmigrationDetailViewP
 
     if (loading) return <div className="p-8 text-center">Loading case details...</div>;
     if (!caseData) return <div className="p-8 text-center">Case not found.</div>;
+    const notes = caseData.description || caseData.notes;
+    const status = caseData.status || 'pending';
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -59,8 +71,8 @@ export default function ImmigrationDetailView({ caseId }: ImmigrationDetailViewP
                             <h1 className="text-2xl font-bold text-gray-900">{caseData.candidateName}</h1>
                             <p className="text-primary font-medium text-lg">{caseData.visaType}</p>
                         </div>
-                        <span className={`px-4 py-1.5 rounded-full text-sm font-semibold uppercase ${getStatusColor(caseData.status)}`}>
-                            {caseData.status}
+                        <span className={`px-4 py-1.5 rounded-full text-sm font-semibold uppercase ${getStatusColor(status)}`}>
+                            {status}
                         </span>
                     </div>
 
@@ -73,7 +85,7 @@ export default function ImmigrationDetailView({ caseId }: ImmigrationDetailViewP
                             </div>
                         </div>
 
-                        {caseData.status === 'rfe' && (
+                        {status === 'rfe' && (
                             <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
                                 <label className="text-xs text-yellow-700 uppercase font-bold tracking-wide block mb-1">Alert</label>
                                 <div className="flex items-center gap-2 text-red-600 font-medium">
@@ -86,7 +98,7 @@ export default function ImmigrationDetailView({ caseId }: ImmigrationDetailViewP
 
                     <div>
                         <h3 className="font-semibold text-gray-900 mb-2">Notes / Description</h3>
-                        <p className="text-gray-600 whitespace-pre-wrap">{caseData.description || 'No additional notes provided.'}</p>
+                        <p className="text-gray-600 whitespace-pre-wrap">{notes || 'No additional notes provided.'}</p>
                     </div>
                 </div>
             </div>

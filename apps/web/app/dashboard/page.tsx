@@ -16,18 +16,76 @@ import DateRangeSelector, { DateRange } from '@/components/dashboard/DateRangeSe
 import ExportButton from '@/components/dashboard/ExportButton';
 import SkeletonLoader from '@/components/dashboard/SkeletonLoader';
 
+function escapeCsv(value: unknown) {
+    const text = String(value ?? '');
+    return `"${text.replace(/"/g, '""')}"`;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+}
+
+function fullName(item: { firstName?: string; lastName?: string; email?: string }) {
+    return `${item.firstName || ''} ${item.lastName || ''}`.trim() || item.email || '';
+}
+
 export default function TeamDashboard() {
     const { userData } = useAuth(); // Get user info
-    const { metrics, activities, interviews, submissions, loading } = useDashboardData();
     const router = useRouter();
     const [dateRange, setDateRange] = useState<DateRange>('month');
+    const [customRange, setCustomRange] = useState<{ startDate: Date; endDate: Date }>();
+    const [exporting, setExporting] = useState(false);
+    const {
+        metrics,
+        activities,
+        interviews,
+        submissions,
+        submissionChartData,
+        pipelineData,
+        exportRows,
+        loading
+    } = useDashboardData(dateRange, customRange);
 
     const quickActions = [
         { id: '1', label: 'Add Candidate', icon: '👤', href: '/candidates/new', color: 'primary' as const },
         { id: '2', label: 'Create Job', icon: '💼', href: '/jobs/new', color: 'primary' as const },
         { id: '3', label: 'Review Timesheets', icon: '⏰', href: '/timesheets', color: 'accent' as const },
-        { id: '4', label: 'Manage Team', icon: '👥', href: '/settings/team', color: 'primary' as const }
+        { id: '4', label: 'Manage Team', icon: '👥', href: '/settings', color: 'primary' as const }
     ];
+
+    const handleExport = (format: 'csv' | 'json') => {
+        setExporting(true);
+        try {
+            const timestamp = new Date().toISOString().slice(0, 10);
+
+            if (format === 'json') {
+                downloadBlob(
+                    new Blob([JSON.stringify(exportRows, null, 2)], { type: 'application/json;charset=utf-8' }),
+                    `dashboard-export-${timestamp}.json`
+                );
+                return;
+            }
+
+            const rows = [
+                ['section', 'id', 'name', 'status', 'date', 'amount'],
+                ...exportRows.candidates.map((item) => ['candidate', item.id, fullName(item), item.status, item.createdAt, '']),
+                ...exportRows.jobs.map((item) => ['job', item.id, item.title, item.status, item.createdAt, item.maxRate || item.billRateMax || '']),
+                ...exportRows.submissions.map((item) => ['submission', item.id, `${item.candidateName || ''} -> ${item.jobTitle || ''}`, item.status, item.submittedAt || item.createdAt, '']),
+                ...exportRows.interviews.map((item) => ['interview', item.id, `${item.candidateName || ''} -> ${item.jobTitle || ''}`, item.status, item.scheduledAt, '']),
+                ...exportRows.timesheets.map((item) => ['timesheet', item.id, `${item.candidateName || ''} / ${item.projectName || ''}`, item.status, item.weekEnding || item.createdAt, item.totalHours || '']),
+                ...exportRows.projects.map((item) => ['project', item.id, item.name, item.status, item.createdAt, item.value || item.budget || '']),
+            ];
+            const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\n');
+            downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `dashboard-export-${timestamp}.csv`);
+        } finally {
+            setExporting(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -48,7 +106,7 @@ export default function TeamDashboard() {
         return (
             <div className="p-8 max-w-[1600px] mx-auto min-h-screen flex flex-col items-center justify-center text-center">
                 <h1 className="text-3xl font-bold mb-4">Welcome to your Dashboard, {userData?.firstName}!</h1>
-                <p className="text-gray-600 mb-8 max-w-md">It looks like you haven't added any data yet. Get started by creating your first job or adding a candidate.</p>
+                <p className="text-gray-600 mb-8 max-w-md">It looks like you have not added any data yet. Get started by creating your first job or adding a candidate.</p>
                 <div className="flex gap-4">
                     <button onClick={() => router.push('/jobs/new')} className="px-6 py-3 bg-[#4B9DA9] text-white rounded-lg shadow hover:bg-[#3A7D87]">Create Job</button>
                     <button onClick={() => router.push('/candidates/new')} className="px-6 py-3 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">Add Candidate</button>
@@ -65,16 +123,17 @@ export default function TeamDashboard() {
                     <h1 className="text-3xl font-bold text-gray-900 tracking-tight">
                         Welcome back, <span className="bg-gradient-to-r from-[#4B9DA9] to-[#E37434] bg-clip-text text-transparent">{userData?.firstName || 'Team'}</span>! 👋
                     </h1>
-                    <p className="text-gray-500 mt-1 text-lg">Here's what's happening today.</p>
+                    <p className="text-gray-500 mt-1 text-lg">Here is what is happening today.</p>
                 </div>
                 <div className="flex items-center gap-3 w-full md:w-auto">
                     <DateRangeSelector
                         value={dateRange}
                         onChange={setDateRange}
+                        onCustomRangeChange={(startDate, endDate) => setCustomRange({ startDate, endDate })}
                     />
                     <ExportButton
-                        onExport={(format) => console.log('Exporting', format)}
-                        loading={false}
+                        onExport={handleExport}
+                        loading={exporting}
                     />
                     <button
                         onClick={() => window.location.reload()}
@@ -92,7 +151,6 @@ export default function TeamDashboard() {
                     title="Active Candidates"
                     value={metrics.candidates}
                     icon="👥"
-                    trend={{ value: 12, isPositive: true }}
                     variant="primary"
                     onClick={() => router.push('/candidates')}
                 />
@@ -100,7 +158,6 @@ export default function TeamDashboard() {
                     title="Open Jobs"
                     value={metrics.jobs}
                     icon="💼"
-                    trend={{ value: 5, isPositive: true }}
                     variant="accent"
                     onClick={() => router.push('/jobs')}
                 />
@@ -108,14 +165,12 @@ export default function TeamDashboard() {
                     title="Total Submissions"
                     value={metrics.submissions}
                     icon="📝"
-                    trend={{ value: 8, isPositive: false }}
                     variant="primary"
                 />
                 <MetricCard
                     title="Pending Timesheets"
                     value={metrics.timesheets}
                     icon="⏱️"
-                    trend={{ value: 2, isPositive: true }}
                     variant="warning"
                 />
             </div>
@@ -124,11 +179,11 @@ export default function TeamDashboard() {
 
             {/* Charts Section */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                <ChartCard title="Submissions Over Time" subtitle="Last 7 Days">
-                    <SubmissionsChart />
+                <ChartCard title="Submissions Over Time" subtitle="Selected range">
+                    <SubmissionsChart data={submissionChartData} />
                 </ChartCard>
                 <ChartCard title="Candidate Pipeline" subtitle="Current Funnel">
-                    <PipelineChart />
+                    <PipelineChart data={pipelineData} />
                 </ChartCard>
             </div>
 

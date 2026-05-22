@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
-import { collection, query, where, onSnapshot, orderBy, limit, Timestamp } from 'firebase/firestore';
+import { useEffect, useMemo, useState } from 'react';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from './config';
 import { useAuth } from './AuthContext';
+
+export type DashboardDateRange = 'today' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 
 export interface Candidate {
     id: string;
@@ -11,16 +13,16 @@ export interface Candidate {
     phone: string;
     skills: string[];
     status: string;
-    createdAt: any;
+    createdAt: unknown;
+    updatedAt?: unknown;
 
-    // Talent Bench Specific
     benchReady?: boolean;
     highPriority?: boolean;
     visaStatus?: string;
-    visaExpiry?: any;
-    availabilityDate?: any;
+    visaExpiry?: unknown;
+    availabilityDate?: unknown;
     availabilityStatus?: 'Immediate' | 'In 2 weeks' | 'In 30 days' | 'On Project';
-    currentProjectEndDate?: any;
+    currentProjectEndDate?: unknown;
     expectedRate?: string;
     assignedRecruiter?: string;
 }
@@ -28,110 +30,317 @@ export interface Candidate {
 export interface Job {
     id: string;
     title: string;
-    department: string;
-    location: string;
-    status: 'Open' | 'Closed' | 'Draft';
-    createdAt: any;
+    department?: string;
+    location?: string;
+    maxRate?: string | number;
+    billRateMax?: string | number;
+    status: 'Open' | 'Closed' | 'Draft' | string;
+    createdAt: unknown;
+    updatedAt?: unknown;
 }
 
 export interface Submission {
     id: string;
     candidateId: string;
     jobId: string;
-    candidateName: string; // Denormalized for easy display
-    jobTitle: string;      // Denormalized
-    status: 'pending' | 'approved' | 'rejected' | 'interviewing';
-    submittedBy: string;
-    submittedAt: any;
+    candidateName: string;
+    jobTitle: string;
+    status: 'pending' | 'approved' | 'rejected' | 'interviewing' | 'submitted' | 'screening' | 'interview' | 'offered';
+    submittedBy?: string;
+    createdBy?: string;
+    submittedAt?: unknown;
+    createdAt?: unknown;
+    updatedAt?: unknown;
 }
 
 export interface Interview {
     id: string;
     candidateName: string;
     jobTitle: string;
-    scheduledAt: any;
-    interviewType: 'phone' | 'video' | 'onsite';
-    status: 'scheduled' | 'completed';
+    scheduledAt: string;
+    interviewType?: 'phone' | 'video' | 'onsite' | string;
+    mode?: string;
+    status: 'scheduled' | 'completed' | string;
     meetingLink?: string;
+    location?: string;
+    createdAt?: unknown;
 }
 
-export function useDashboardData() {
-    const { userData, loading: authLoading } = useAuth();
-    const [metrics, setMetrics] = useState({
-        candidates: 0,
-        jobs: 0,
-        submissions: 0,
-        timesheets: 0 // Mock for now
+interface Timesheet {
+    id: string;
+    candidateName?: string;
+    projectName?: string;
+    weekEnding?: unknown;
+    totalHours?: number;
+    status?: string;
+    createdAt?: unknown;
+    updatedAt?: unknown;
+}
+
+interface Project {
+    id: string;
+    name: string;
+    status?: string;
+    budget?: string | number;
+    value?: string | number;
+    createdAt?: unknown;
+}
+
+export interface DashboardActivity {
+    id: string;
+    type: 'user' | 'team' | 'candidate' | 'job' | 'submission';
+    action: string;
+    user: string;
+    timestamp: string;
+}
+
+interface DashboardRecords {
+    candidates: Candidate[];
+    jobs: Job[];
+    submissions: Submission[];
+    interviews: Interview[];
+    timesheets: Timesheet[];
+    projects: Project[];
+}
+
+function toDate(value: unknown): Date | null {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    if (typeof value === 'object' && value && 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function') {
+        return (value as { toDate: () => Date }).toDate();
+    }
+    const date = new Date(String(value));
+    return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function toIso(value: unknown) {
+    return toDate(value)?.toISOString() || new Date(0).toISOString();
+}
+
+function getDateRangeBounds(range: DashboardDateRange, customRange?: { startDate: Date; endDate: Date }) {
+    const now = new Date();
+    const start = new Date(now);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+
+    if (range === 'custom' && customRange) {
+        const customStart = new Date(customRange.startDate);
+        const customEnd = new Date(customRange.endDate);
+        customStart.setHours(0, 0, 0, 0);
+        customEnd.setHours(23, 59, 59, 999);
+        return { start: customStart, end: customEnd };
+    }
+
+    if (range === 'today') {
+        start.setHours(0, 0, 0, 0);
+    } else if (range === 'week') {
+        start.setDate(now.getDate() - 6);
+        start.setHours(0, 0, 0, 0);
+    } else if (range === 'quarter') {
+        start.setMonth(now.getMonth() - 2, 1);
+        start.setHours(0, 0, 0, 0);
+    } else if (range === 'year') {
+        start.setMonth(0, 1);
+        start.setHours(0, 0, 0, 0);
+    } else {
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+    }
+
+    return { start, end };
+}
+
+function isInRange(value: unknown, start: Date, end: Date) {
+    const date = toDate(value);
+    if (!date) return false;
+    return date >= start && date <= end;
+}
+
+function recordDate(record: { createdAt?: unknown; submittedAt?: unknown; updatedAt?: unknown; weekEnding?: unknown; scheduledAt?: unknown }) {
+    return record.submittedAt || record.createdAt || record.weekEnding || record.scheduledAt || record.updatedAt;
+}
+
+function groupSubmissionsByDay(submissions: Submission[]) {
+    const counts = new Map<string, { date: string; submitted: number; approved: number; rejected: number }>();
+
+    submissions.forEach((submission) => {
+        const date = toDate(recordDate(submission));
+        if (!date) return;
+        const label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const current = counts.get(label) || { date: label, submitted: 0, approved: 0, rejected: 0 };
+        current.submitted += 1;
+        if (submission.status === 'approved' || submission.status === 'offered') current.approved += 1;
+        if (submission.status === 'rejected') current.rejected += 1;
+        counts.set(label, current);
     });
-    const [activities, setActivities] = useState<any[]>([]);
-    const [interviews, setInterviews] = useState<Interview[]>([]);
-    const [submissions, setSubmissions] = useState<Submission[]>([]);
-    const [loading, setLoading] = useState(true);
+
+    return Array.from(counts.values());
+}
+
+function pipelineFromCandidates(candidates: Candidate[]) {
+    const stages = ['new', 'screening', 'interviewing', 'offered', 'hired'];
+    const total = Math.max(candidates.length, 1);
+
+    return stages.map((stage) => {
+        const count = candidates.filter((candidate) => candidate.status === stage).length;
+        return {
+            stage: stage.charAt(0).toUpperCase() + stage.slice(1),
+            count,
+            percentage: Math.round((count / total) * 100),
+        };
+    });
+}
+
+function makeActivities(records: DashboardRecords, currentUserName: string, start: Date, end: Date): DashboardActivity[] {
+    const activities: DashboardActivity[] = [];
+
+    records.candidates.forEach((candidate) => {
+        if (!isInRange(candidate.createdAt, start, end)) return;
+        activities.push({
+            id: `candidate-${candidate.id}`,
+            type: 'candidate',
+            action: `added candidate ${`${candidate.firstName || ''} ${candidate.lastName || ''}`.trim() || candidate.email}`,
+            user: currentUserName,
+            timestamp: toIso(candidate.createdAt),
+        });
+    });
+
+    records.jobs.forEach((job) => {
+        if (!isInRange(job.createdAt, start, end)) return;
+        activities.push({
+            id: `job-${job.id}`,
+            type: 'job',
+            action: `created job ${job.title || job.id}`,
+            user: currentUserName,
+            timestamp: toIso(job.createdAt),
+        });
+    });
+
+    records.submissions.forEach((submission) => {
+        const date = recordDate(submission);
+        if (!isInRange(date, start, end)) return;
+        activities.push({
+            id: `submission-${submission.id}`,
+            type: 'submission',
+            action: `submitted ${submission.candidateName || 'a candidate'} to ${submission.jobTitle || 'a job'}`,
+            user: submission.submittedBy || currentUserName,
+            timestamp: toIso(date),
+        });
+    });
+
+    records.interviews.forEach((interview) => {
+        if (!isInRange(interview.createdAt || interview.scheduledAt, start, end)) return;
+        activities.push({
+            id: `interview-${interview.id}`,
+            type: 'submission',
+            action: `scheduled ${interview.candidateName || 'candidate'} for ${interview.jobTitle || 'an interview'}`,
+            user: currentUserName,
+            timestamp: toIso(interview.createdAt || interview.scheduledAt),
+        });
+    });
+
+    return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 15);
+}
+
+export function useDashboardData(
+    dateRange: DashboardDateRange = 'month',
+    customRange?: { startDate: Date; endDate: Date }
+) {
+    const { userData, loading: authLoading } = useAuth();
+    const [records, setRecords] = useState<DashboardRecords>({
+        candidates: [],
+        jobs: [],
+        submissions: [],
+        interviews: [],
+        timesheets: [],
+        projects: [],
+    });
+    const [loadedTeamId, setLoadedTeamId] = useState<string | null>(null);
 
     useEffect(() => {
-        // If auth is still loading, wait
-        if (authLoading) return;
+        if (authLoading || !userData?.teamId) return;
 
-        // If no user or teamId after auth load, stop loading and return
-        if (!userData?.teamId) {
-            setLoading(false);
-            return;
-        }
-
+        const loaded = new Set<keyof DashboardRecords>();
         const teamId = userData.teamId;
-
-        if (!teamId) {
-            console.warn('No team ID found for user, skipping dashboard data fetch.');
-            setLoading(false);
-            return;
-        }
-
-        // Listen to Submissions (for trend chart & recent list)
-        const subRef = collection(db, 'teams', teamId, 'submissions');
-        const unsubSub = onSnapshot(query(subRef, orderBy('submittedAt', 'desc'), limit(50)), (snap) => {
-            const subs = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Submission));
-            setSubmissions(subs);
-        });
-
-        // Listen to Candidates Count
-        const candRef = collection(db, 'teams', teamId, 'candidates');
-        const unsubCand = onSnapshot(candRef, (snap) => {
-            setMetrics(prev => ({ ...prev, candidates: snap.size }));
-        });
-
-        // Listen to Jobs Count
-        const jobRef = collection(db, 'teams', teamId, 'jobs');
-        const unsubJob = onSnapshot(jobRef, (snap) => {
-            setMetrics(prev => ({ ...prev, jobs: snap.size }));
-        });
-
-        // Listen to Interviews
-        const intRef = collection(db, 'teams', teamId, 'interviews');
-        const unsubInt = onSnapshot(query(intRef, orderBy('scheduledAt', 'asc'), limit(5)), (snap) => {
-            const ints = snap.docs.map(doc => {
-                const data = doc.data();
-                return {
-                    id: doc.id,
-                    ...data,
-                    // Convert Firestore Timestamp to Date, handling potential missing fields or already-date objects
-                    scheduledAt: data.scheduledAt?.toDate ? data.scheduledAt.toDate() : new Date(data.scheduledAt || Date.now())
-                } as Interview;
-            });
-            setInterviews(ints);
-        });
-
-        // Update submissions metric
-        setMetrics(prev => ({ ...prev, submissions: submissions.length, timesheets: 12 })); // Mock timesheets
-
-        setLoading(false);
-
-        return () => {
-            unsubSub();
-            unsubCand();
-            unsubJob();
-            unsubInt();
+        const markLoaded = (key: keyof DashboardRecords) => {
+            loaded.add(key);
+            if (loaded.size === 6) setLoadedTeamId(teamId);
         };
+
+        const subscriptions = [
+            onSnapshot(query(collection(db, 'teams', teamId, 'candidates'), orderBy('createdAt', 'desc')), (snap) => {
+                setRecords((prev) => ({ ...prev, candidates: snap.docs.map((item) => ({ id: item.id, ...item.data() })) as Candidate[] }));
+                markLoaded('candidates');
+            }),
+            onSnapshot(query(collection(db, 'teams', teamId, 'jobs'), orderBy('createdAt', 'desc')), (snap) => {
+                setRecords((prev) => ({ ...prev, jobs: snap.docs.map((item) => ({ id: item.id, ...item.data() })) as Job[] }));
+                markLoaded('jobs');
+            }),
+            onSnapshot(query(collection(db, 'teams', teamId, 'submissions'), orderBy('createdAt', 'desc')), (snap) => {
+                setRecords((prev) => ({ ...prev, submissions: snap.docs.map((item) => ({ id: item.id, ...item.data() })) as Submission[] }));
+                markLoaded('submissions');
+            }),
+            onSnapshot(query(collection(db, 'teams', teamId, 'interviews'), orderBy('scheduledAt', 'asc')), (snap) => {
+                setRecords((prev) => ({ ...prev, interviews: snap.docs.map((item) => ({ id: item.id, ...item.data() })) as Interview[] }));
+                markLoaded('interviews');
+            }),
+            onSnapshot(query(collection(db, 'teams', teamId, 'timesheets'), orderBy('createdAt', 'desc')), (snap) => {
+                setRecords((prev) => ({ ...prev, timesheets: snap.docs.map((item) => ({ id: item.id, ...item.data() })) as Timesheet[] }));
+                markLoaded('timesheets');
+            }),
+            onSnapshot(query(collection(db, 'teams', teamId, 'projects'), orderBy('createdAt', 'desc')), (snap) => {
+                setRecords((prev) => ({ ...prev, projects: snap.docs.map((item) => ({ id: item.id, ...item.data() })) as Project[] }));
+                markLoaded('projects');
+            }),
+        ];
+
+        return () => subscriptions.forEach((unsubscribe) => unsubscribe());
     }, [userData?.teamId, authLoading]);
 
-    return { metrics, activities, interviews, submissions, loading };
+    const loading = authLoading || Boolean(userData?.teamId && loadedTeamId !== userData.teamId);
+
+    return useMemo(() => {
+        const { start, end } = getDateRangeBounds(dateRange, customRange);
+        const rangeSubmissions = records.submissions.filter((submission) => isInRange(recordDate(submission), start, end));
+        const rangeTimesheets = records.timesheets.filter((timesheet) => isInRange(recordDate(timesheet), start, end));
+        const rangeInterviews = records.interviews
+            .filter((interview) => isInRange(interview.scheduledAt, start, end))
+            .map((interview) => ({
+                ...interview,
+                scheduledAt: toDate(interview.scheduledAt)?.toISOString() || new Date(0).toISOString(),
+                interviewType: interview.interviewType || interview.mode || 'onsite',
+                meetingLink: interview.meetingLink || interview.location,
+            }));
+
+        const currentUserName = `${userData?.firstName || ''} ${userData?.lastName || ''}`.trim() || userData?.email || 'Team';
+
+        return {
+            metrics: {
+                candidates: records.candidates.filter((candidate) => !['rejected', 'withdrawn'].includes(candidate.status)).length,
+                jobs: records.jobs.filter((job) => ['open', 'active'].includes(String(job.status || '').toLowerCase())).length,
+                submissions: rangeSubmissions.length,
+                timesheets: rangeTimesheets.filter((timesheet) => !['approved', 'paid'].includes(String(timesheet.status || '').toLowerCase())).length,
+                projects: records.projects.filter((project) => String(project.status || '').toLowerCase() === 'active').length,
+            },
+            activities: makeActivities(records, currentUserName, start, end),
+            interviews: rangeInterviews,
+            submissions: rangeSubmissions.map((submission) => ({
+                ...submission,
+                submittedAt: toIso(recordDate(submission)),
+                submittedBy: submission.submittedBy || currentUserName,
+            })),
+            submissionChartData: groupSubmissionsByDay(rangeSubmissions),
+            pipelineData: pipelineFromCandidates(records.candidates),
+            exportRows: {
+                candidates: records.candidates,
+                jobs: records.jobs,
+                submissions: rangeSubmissions,
+                interviews: rangeInterviews,
+                timesheets: rangeTimesheets,
+                projects: records.projects,
+            },
+            range: { start, end },
+            loading,
+        };
+    }, [records, dateRange, customRange, userData?.email, userData?.firstName, userData?.lastName, loading]);
 }

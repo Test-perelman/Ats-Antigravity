@@ -11,9 +11,33 @@ interface TalentBenchDetailViewProps {
     profileId: string;
 }
 
+interface TimestampLike {
+    toDate: () => Date;
+}
+
+interface BenchProfileRecord {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    title?: string;
+    status?: string;
+    availabilityDate?: unknown;
+    email?: string;
+    phone?: string;
+    experience?: string | number;
+    visaStatus?: string;
+    rate?: string | number;
+    vendor?: string;
+    skills?: string[];
+}
+
+function isTimestampLike(value: unknown): value is TimestampLike {
+    return typeof value === 'object' && value !== null && 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function';
+}
+
 export default function TalentBenchDetailView({ profileId }: TalentBenchDetailViewProps) {
     const { userData } = useAuth();
-    const [profile, setProfile] = useState<any>(null);
+    const [profile, setProfile] = useState<BenchProfileRecord | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -21,10 +45,10 @@ export default function TalentBenchDetailView({ profileId }: TalentBenchDetailVi
 
         const fetchProfile = async () => {
             try {
-                const docRef = doc(db, 'teams', userData.teamId, 'talent_bench', profileId);
+                const docRef = doc(db, 'teams', userData.teamId, 'candidates', profileId);
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
-                    setProfile({ id: docSnap.id, ...docSnap.data() });
+                    setProfile({ id: docSnap.id, ...docSnap.data() } as BenchProfileRecord);
                 }
             } catch (err) {
                 console.error("Error fetching bench profile:", err);
@@ -36,10 +60,10 @@ export default function TalentBenchDetailView({ profileId }: TalentBenchDetailVi
         fetchProfile();
     }, [userData?.teamId, profileId]);
 
-    const formatDate = (timestamp: any) => {
+    const formatDate = (timestamp: unknown) => {
         if (!timestamp) return 'Immediate';
-        if (timestamp.toDate) return timestamp.toDate().toLocaleDateString();
-        return new Date(timestamp).toLocaleDateString();
+        if (isTimestampLike(timestamp)) return timestamp.toDate().toLocaleDateString();
+        return new Date(String(timestamp)).toLocaleDateString();
     };
 
     if (loading) return <div className="p-8 text-center">Loading profile...</div>;
@@ -113,7 +137,7 @@ export default function TalentBenchDetailView({ profileId }: TalentBenchDetailVi
             </div>
 
             <div className="md:col-span-1">
-                <NotesList parentId={profileId} parentType="talent_bench" />
+                <NotesList parentId={profileId} parentType="candidates" />
             </div>
         </div>
     );

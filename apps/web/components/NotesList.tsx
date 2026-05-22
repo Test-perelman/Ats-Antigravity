@@ -9,9 +9,12 @@ import { MessageSquare, Send } from 'lucide-react';
 
 interface Note {
     id: string;
-    text: string;
-    createAt: any;
-    userName: string;
+    text?: string;
+    content?: string;
+    createdAt?: unknown;
+    createAt?: unknown;
+    userName?: string;
+    authorName?: string;
 }
 
 interface NotesListProps {
@@ -54,9 +57,11 @@ export default function NotesList({ parentId, parentType }: NotesListProps) {
         try {
             await addDoc(collection(db, 'teams', userData.teamId, parentType, parentId, 'notes'), {
                 text: newNote,
+                content: newNote,
                 createdAt: serverTimestamp(),
                 createdBy: userData.uid,
-                userName: `${userData.firstName} ${userData.lastName}` || 'User'
+                userName: `${userData.firstName} ${userData.lastName}`.trim() || 'User',
+                authorName: `${userData.firstName} ${userData.lastName}`.trim() || 'User'
             });
             setNewNote('');
         } catch (err) {
@@ -64,6 +69,15 @@ export default function NotesList({ parentId, parentType }: NotesListProps) {
         } finally {
             setLoading(false);
         }
+    };
+
+    const formatNoteTime = (value: unknown) => {
+        if (!value) return '';
+        const date = typeof value === 'object' && value && 'toDate' in value && typeof (value as { toDate?: unknown }).toDate === 'function'
+            ? (value as { toDate: () => Date }).toDate()
+            : new Date(String(value));
+        if (Number.isNaN(date.getTime())) return '';
+        return date.toLocaleDateString();
     };
 
     return (
@@ -79,11 +93,10 @@ export default function NotesList({ parentId, parentType }: NotesListProps) {
                 ) : (
                     notes.map(note => (
                         <div key={note.id} className="bg-white p-3 rounded shadow-sm text-sm">
-                            <p className="text-gray-800 mb-1">{note.text}</p>
+                            <p className="text-gray-800 mb-1">{note.text || note.content}</p>
                             <div className="text-xs text-gray-400 flex justify-between">
-                                <span>{note.userName}</span>
-                                {/* Ideally format timestamp */}
-                                <span>Recent</span>
+                                <span>{note.userName || note.authorName || 'User'}</span>
+                                <span>{formatNoteTime(note.createdAt || note.createAt)}</span>
                             </div>
                         </div>
                     ))
