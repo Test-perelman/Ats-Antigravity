@@ -39,3 +39,4 @@ tools/firebase-mcp
 # Typescript
 *.tsbuildinfo
 next-env.d.ts
+.vercel
